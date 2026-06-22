@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://geo.dev/schemas/health.schema.json",
+  "title": "HealthResponse",
+  "description": "Response body for GET /health on every service.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "service", "version", "time"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "degraded"],
+      "description": "Overall service state."
+    },
+    "service": {
+      "type": "string",
+      "description": "Logical service name, e.g. 'api' or 'pipeline'."
+    },
+    "version": {
+      "type": "string",
+      "description": "Service semantic version."
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp the response was produced."
+    }
+  }
+}

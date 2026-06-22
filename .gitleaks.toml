@@ -1,0 +1,31 @@
+# gitleaks configuration for the GEO SaaS monorepo.
+# Run locally:   gitleaks detect --config .gitleaks.toml --redact
+# Run on staged: gitleaks protect --staged --config .gitleaks.toml --redact
+#
+# Extends the upstream default ruleset (covers AWS keys, generic API keys,
+# private keys, JWTs, OpenAI/Anthropic-style tokens, etc.) and layers on a
+# couple of project-specific rules + allowlists.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "internal-shared-secret"
+description = "Internal service-to-service shared secret committed to the repo"
+# Matches assignments like INTERNAL_SHARED_SECRET=... with a non-placeholder value.
+regex = '''(?i)internal_shared_secret\s*[:=]\s*['"]?[A-Za-z0-9/+_\-]{12,}['"]?'''
+keywords = ["internal_shared_secret"]
+
+[allowlist]
+description = "Global allowlist for placeholders, examples, and lockfiles"
+paths = [
+  '''.*\.env\.example$''',
+  '''pnpm-lock\.yaml$''',
+  '''uv\.lock$''',
+  '''\.gitleaks\.toml$''',
+]
+# Placeholder values used throughout .env.example files and docs.
+regexes = [
+  '''(?i)(changeme|placeholder|example|your[-_]?[a-z]+[-_]?here|<[^>]+>|xxx+|dummy)''',
+  '''postgres://geo:geo@''',
+]
