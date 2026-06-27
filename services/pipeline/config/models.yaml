@@ -1,0 +1,148 @@
+# Model gateway configuration — the SINGLE place that maps tasks to models.
+#
+# Nothing in the codebase hardcodes a model or provider. Changing a model, a
+# provider, or a whole mode is an edit HERE, never a code change.
+#
+# Mode is chosen by env GATEWAY_MODE (mock | dev | prod); default is `mock`,
+# below. Each task has an entry per mode.
+#   mock -> canned fixture responses, no network, NO API key (default)
+#   dev  -> free providers (Groq / OpenRouter / Google AI Studio / Ollama)
+#   prod -> the paid production models
+#
+# Pricing is USD per 1,000,000 tokens and drives llm_cost_log. Mock entries are
+# priced to mirror their prod equivalent so cost rows look realistic (the
+# llm_cost_log.mock flag marks them as simulated).
+
+default_mode: mock
+
+# ── Task → model, per mode ───────────────────────────────────────────────
+tasks:
+  measurement: # ask the real AI engines what they recommend
+    prod:
+      provider: perplexity
+      model: sonar
+    dev:
+      provider: groq
+      model: llama-3.3-70b-versatile
+    mock:
+      provider: mock
+      model: sonar
+      fixture_dir: measurement
+      default_scenario: competitor_wins
+  processing: # cheap, high-volume parsing/extraction
+    prod:
+      provider: deepseek
+      model: deepseek-v4-flash
+    dev:
+      provider: groq
+      model: llama-3.1-8b-instant
+    mock:
+      provider: mock
+      model: deepseek-v4-flash
+      fixture_dir: processing
+      default_scenario: mention_extract
+  generation: # content generation
+    prod:
+      provider: kimi
+      model: kimi-k2.7
+    dev:
+      provider: openrouter
+      model: "deepseek/deepseek-chat-v3:free"
+    mock:
+      provider: mock
+      model: kimi-k2.7
+      fixture_dir: generation
+      default_scenario: comparison_page
+
+# Optional per-task, per-mode fallback used if the primary provider fails.
+fallbacks:
+  generation:
+    prod:
+      provider: deepseek
+      model: deepseek-v4
+
+# ── Providers ────────────────────────────────────────────────────────────
+# type: mock | openai_compatible | gemini  (gemini adapter lands with keys)
+providers:
+  mock:
+    type: mock
+  perplexity:
+    type: openai_compatible
+    base_url: https://api.perplexity.ai
+    api_key_env: PERPLEXITY_API_KEY
+    rpm: 50
+  openai:
+    type: openai_compatible
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+    rpm: 500
+  gemini:
+    type: gemini
+    base_url: https://generativelanguage.googleapis.com/v1beta
+    api_key_env: GOOGLE_API_KEY
+    rpm: 60
+  deepseek:
+    type: openai_compatible
+    base_url: https://api.deepseek.com
+    api_key_env: DEEPSEEK_API_KEY
+    rpm: 100
+  kimi:
+    type: openai_compatible
+    base_url: https://api.moonshot.cn/v1
+    api_key_env: MOONSHOT_API_KEY
+    rpm: 60
+  groq:
+    type: openai_compatible
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+    rpm: 30
+  openrouter:
+    type: openai_compatible
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    rpm: 20
+
+# ── Pricing (USD per 1,000,000 tokens) ───────────────────────────────────
+pricing:
+  "perplexity/sonar":
+    input: 1.00
+    output: 1.00
+  "deepseek/deepseek-v4-flash":
+    input: 0.07
+    output: 0.27
+  "deepseek/deepseek-v4":
+    input: 0.27
+    output: 1.10
+  "kimi/kimi-k2.7":
+    input: 0.60
+    output: 2.50
+  # Mock models reuse the prod price so simulated cost rows look real.
+  "mock/sonar":
+    input: 1.00
+    output: 1.00
+  "mock/deepseek-v4-flash":
+    input: 0.07
+    output: 0.27
+  "mock/kimi-k2.7":
+    input: 0.60
+    output: 2.50
+  # Free dev providers cost nothing.
+  "groq/llama-3.3-70b-versatile":
+    input: 0.0
+    output: 0.0
+  "groq/llama-3.1-8b-instant":
+    input: 0.0
+    output: 0.0
+  "openrouter/deepseek/deepseek-chat-v3:free":
+    input: 0.0
+    output: 0.0
+
+# ── Cross-cutting defaults ───────────────────────────────────────────────
+retry:
+  max_attempts: 3
+  initial_backoff_s: 0.5
+  max_backoff_s: 8.0
+
+cache:
+  enabled: true
+  ttl_s: 3600

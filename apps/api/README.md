@@ -23,12 +23,28 @@ pnpm --filter @geo/api build
 pnpm --filter @geo/api lint
 ```
 
+## Database
+
+The shared Postgres schema lives in [`/db`](../../db/) (SQL is the source of
+truth; see [SCHEMA.md](../../db/SCHEMA.md)). This service owns the migration +
+seed runners and mirrors the schema in Drizzle ([src/db/schema.ts](src/db/schema.ts)).
+
+```bash
+pnpm --filter @geo/api db:migrate   # apply pending SQL migrations (idempotent)
+pnpm --filter @geo/api db:seed      # load the demo account (idempotent)
+pnpm --filter @geo/api db:check     # read the demo account via repositories
+```
+
+All DB access goes through the repository layer in [src/repositories/](src/repositories/)
+— tenant-scoped (every query filters on `account_id`), no raw SQL in business
+logic.
+
 ## Endpoints
 
-| Method | Path | Auth | Purpose |
-| --- | --- | --- | --- |
-| GET | `/health` | none | Liveness; returns the shared `HealthResponse` shape. |
-| GET | `/internal/pipeline-health` | none (server-side) | Calls the pipeline's protected `/internal/ping` via the shared-secret client. Proves the authenticated internal path. |
+| Method | Path                        | Auth               | Purpose                                                                                                               |
+| ------ | --------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/health`                   | none               | Liveness; returns the shared `HealthResponse` shape.                                                                  |
+| GET    | `/internal/pipeline-health` | none (server-side) | Calls the pipeline's protected `/internal/ping` via the shared-secret client. Proves the authenticated internal path. |
 
 ## Config
 

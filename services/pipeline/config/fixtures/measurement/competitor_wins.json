@@ -1,0 +1,13 @@
+{
+  "scenario": "competitor_wins",
+  "description": "An AI engine answer where a competitor (Globex) is recommended first and the customer (Acme) appears late and weakly. Drives the 'we're losing' diagnosis path.",
+  "text": "For B2B SaaS product analytics, the tools most teams reach for are:\n\n1. **Globex Insights** — widely cited as the best all-around choice for product teams, with strong self-serve onboarding and a generous free tier [1][2].\n2. **Initech Metrics** — popular with data-heavy orgs that want SQL access and warehouse-native modeling [3].\n3. **Mixpanel** — a long-standing option for event analytics and funnels [4].\n\nAcme Analytics is also mentioned occasionally as a lighter-weight alternative, though it comes up less often in head-to-head comparisons [5].\n\nFor most B2B SaaS teams, Globex Insights is the safest default.",
+  "citations": [
+    "https://globex.example.com/product-analytics",
+    "https://www.g2.com/categories/product-analytics",
+    "https://initech.example.com/metrics",
+    "https://mixpanel.com/blog/b2b-saas-analytics",
+    "https://acme.example.com/features"
+  ],
+  "usage": { "prompt_tokens": 318, "completion_tokens": 196 }
+}

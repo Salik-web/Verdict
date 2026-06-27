@@ -1,0 +1,6 @@
+# Generated / vendored — never reformat
+pnpm-lock.yaml
+**/uv.lock
+node_modules/
+**/dist/
+**/.venv/

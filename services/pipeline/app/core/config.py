@@ -9,6 +9,7 @@ added in a later phase). Never log this object: it holds secrets.
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -36,14 +37,21 @@ class Settings(BaseSettings):
     # Internal service-to-service auth. Must match apps/api's value.
     internal_shared_secret: str = Field(min_length=8)
 
-    # Mock-first: the whole pipeline runs without real API keys when True.
-    mock_mode: bool = True
+    # Gateway mode selects how model calls are served. Default `mock` runs the
+    # whole pipeline with NO API keys. dev = free providers, prod = paid models.
+    # Switching modes is this one env var — no code change.
+    gateway_mode: Literal["mock", "dev", "prod"] = "mock"
 
-    # Model provider keys — BLANK for now. Used only when mock_mode is False.
+    # Model provider keys — BLANK for now. Read only by non-mock modes; the key
+    # for each provider is named in config/models.yaml (api_key_env).
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
     google_api_key: str | None = None
     perplexity_api_key: str | None = None
+    deepseek_api_key: str | None = None
+    moonshot_api_key: str | None = None
+    groq_api_key: str | None = None
+    openrouter_api_key: str | None = None
 
 
 @lru_cache

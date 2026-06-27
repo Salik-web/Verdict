@@ -1,0 +1,18 @@
+{
+  "scenario": "mention_extract",
+  "description": "Structured extraction of a measurement answer into a Mention-shaped record (brand, position, sentiment, cited URLs + competitor positions). 'text' is an object; the gateway serializes it to a JSON string, mirroring a model emitting JSON.",
+  "text": {
+    "brand": "Acme Analytics",
+    "mentioned": true,
+    "position": 4,
+    "sentiment": "neutral",
+    "sentiment_score": 0.12,
+    "cited_urls": ["https://acme.example.com/features"],
+    "competitors": [
+      { "brand": "Globex Insights", "position": 1, "sentiment": "positive" },
+      { "brand": "Initech Metrics", "position": 2, "sentiment": "neutral" },
+      { "brand": "Mixpanel", "position": 3, "sentiment": "neutral" }
+    ]
+  },
+  "usage": { "prompt_tokens": 612, "completion_tokens": 88 }
+}

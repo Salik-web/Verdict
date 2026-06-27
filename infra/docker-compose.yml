@@ -4,8 +4,10 @@
 #   cp .env.example .env
 #   docker compose up -d
 #
-# Migrations in ../db/migrations run automatically the first time the postgres
-# volume is created (mounted into /docker-entrypoint-initdb.d).
+# This only starts empty Postgres + Redis. Apply the schema with the migration
+# runner (the SQL files in ../db/migrations are the source of truth):
+#   pnpm --filter @geo/api db:migrate
+#   pnpm --filter @geo/api db:seed
 
 name: geo
 
@@ -21,9 +23,12 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ../db/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-geo} -d ${POSTGRES_DB:-geo}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-geo} -d ${POSTGRES_DB:-geo}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 10

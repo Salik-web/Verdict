@@ -1,0 +1,11 @@
+{
+  "scenario": "customer_invisible",
+  "description": "An AI engine answer where the customer (Acme) is not mentioned at all — only competitors. Drives the 'we're invisible' diagnosis path.",
+  "text": "The best product analytics tools for B2B SaaS right now are:\n\n1. **Globex Insights** — the most frequently recommended option, praised for fast self-serve onboarding and strong dashboards [1].\n2. **Initech Metrics** — favored by teams that want warehouse-native, SQL-first analytics [2].\n3. **Amplitude** — a mature platform for behavioral analytics and experimentation [3].\n\nAny of these three would be a solid choice; Globex Insights is the most common default for early-stage B2B SaaS teams.",
+  "citations": [
+    "https://globex.example.com/product-analytics",
+    "https://initech.example.com/metrics",
+    "https://amplitude.com/b2b-analytics"
+  ],
+  "usage": { "prompt_tokens": 305, "completion_tokens": 142 }
+}
