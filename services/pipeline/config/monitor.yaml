@@ -1,0 +1,29 @@
+# Monitor (visibility measurement) stage configuration.
+#
+# Data-driven per principle 3: engines, repeat count, and prompt-generation
+# target all live here, never inline in code. Adding an engine (Perplexity
+# Sonar / OpenAI / Gemini) is a new entry here + a gateway task in models.yaml —
+# not a code change.
+
+# How many times each prompt is asked per engine (smooths run-to-run variance).
+repeats: 5
+
+# Prompt auto-generation target (~25-30 high-intent prompts).
+prompt_target_count: 28
+
+# Fallback business category when the account has none in settings.category.
+default_category: "B2B SaaS product analytics"
+
+# Engines measured in a scan. Start with one; more are added here.
+engines:
+  - name: perplexity_sonar
+    gateway_task: measurement
+    # MOCK-ONLY: scenarios cycled by run index so repeated runs vary, which
+    # exercises share-of-voice smoothing. Omitted/ignored in dev & prod (there
+    # the engine is queried for real, N times).
+    mock_scenarios:
+      - competitor_wins
+      - competitor_wins
+      - competitor_wins
+      - customer_invisible
+      - customer_invisible

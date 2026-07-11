@@ -22,6 +22,28 @@ class PromptRepository:
             stmt = stmt.where(Prompt.active.is_(True))
         return list(self.session.scalars(stmt).all())
 
+    def create_many(
+        self,
+        account_id: uuid.UUID | str,
+        texts: list[str],
+        *,
+        category: str | None = None,
+        prompt_group: str | None = None,
+    ) -> list[Prompt]:
+        rows = [
+            Prompt(
+                account_id=_as_uuid(account_id),
+                text=text,
+                category=category,
+                prompt_group=prompt_group,
+                active=True,
+            )
+            for text in texts
+        ]
+        self.session.add_all(rows)
+        self.session.flush()
+        return rows
+
 
 def _as_uuid(value: uuid.UUID | str) -> uuid.UUID:
     return value if isinstance(value, uuid.UUID) else uuid.UUID(value)

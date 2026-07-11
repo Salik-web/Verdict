@@ -1,9 +1,11 @@
 """Celery application for pipeline workers.
 
-Phase 1 wires the app to Redis but registers no real tasks. Stage tasks
-(monitor/diagnose/execute/verify) get added in later phases. Run a worker with:
+Run a worker with:
 
     uv run celery -A app.celery_app worker --loglevel=info
+
+Stage tasks live in app.pipeline.tasks (imported via `include` below) so the
+worker discovers them without creating an import cycle at module load.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ celery_app = Celery(
     "geo_pipeline",
     broker=_settings.redis_url,
     backend=_settings.redis_url,
+    include=["app.pipeline.tasks"],
 )
 
 celery_app.conf.update(

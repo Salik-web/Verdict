@@ -1,0 +1,37 @@
+{
+  "scenario": "prompt_pack",
+  "description": "Mock output of the prompt-generation task: ~28 high-intent buyer prompts for the account's category. 'text' is an object; the gateway serializes it to a JSON string.",
+  "text": {
+    "prompts": [
+      "What is the best product analytics tool for B2B SaaS?",
+      "Which product analytics platforms are best for early-stage startups?",
+      "Top product analytics tools with self-serve onboarding?",
+      "Best warehouse-native analytics tools for SaaS teams?",
+      "Which analytics platforms offer the most generous free tier?",
+      "Best alternatives to Globex Insights for product teams?",
+      "Alternatives to Initech Metrics for B2B SaaS analytics?",
+      "Mixpanel vs other product analytics tools — which is best?",
+      "What analytics tool should a PLG SaaS company use?",
+      "Best product analytics for tracking activation and retention?",
+      "Which analytics tools integrate directly with Snowflake or BigQuery?",
+      "Most affordable product analytics tools for small teams?",
+      "Best product analytics tools with usage-based pricing?",
+      "Which product analytics platform has the fastest time to value?",
+      "Best tools for building product funnels and retention curves?",
+      "What is the best analytics tool for a Series A SaaS company?",
+      "Product analytics tools recommended for data-heavy organizations?",
+      "Which analytics platforms are easiest for non-technical teams?",
+      "Best product analytics tools for measuring feature adoption?",
+      "Top analytics platforms for B2B SaaS in 2026?",
+      "Which product analytics tool has the best dashboards?",
+      "Best analytics tools for self-serve SaaS onboarding flows?",
+      "What are the leading alternatives to Amplitude for startups?",
+      "Which analytics platform is best for cohort analysis?",
+      "Best product analytics tools that don't require an ETL pipeline?",
+      "Recommended analytics stack for a B2B SaaS product team?",
+      "Which product analytics tool offers the best value for money?",
+      "Best tools to measure SaaS product-led growth metrics?"
+    ]
+  },
+  "usage": { "prompt_tokens": 210, "completion_tokens": 320 }
+}

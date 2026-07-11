@@ -1,9 +1,8 @@
 """Internal endpoints, guarded by the shared-secret dependency.
 
 /internal/ping proves the authenticated path; /internal/scans/run is the scan
-trigger the TS API calls. The actual pipeline stages (monitor/diagnose/execute/
-verify) land in the next phase — for now the trigger validates the scan exists
-in the shared DB (proving the cross-service contract) and acknowledges.
+trigger the TS API calls. It validates the scan exists for the tenant (shared-DB
+contract) and enqueues the Monitor stage as a Celery job.
 """
 
 from __future__ import annotations
@@ -41,14 +40,16 @@ class ScanRunRequest(BaseModel):
 class ScanRunResponse(BaseModel):
     accepted: bool
     scan_id: uuid.UUID
+    task_id: str | None = None
 
 
 @router.post("/scans/run", response_model=ScanRunResponse, status_code=202)
 async def run_scan(body: ScanRunRequest) -> ScanRunResponse:
-    """Accept a scan trigger from the TS API.
+    """Accept a scan trigger from the TS API and enqueue the Monitor stage.
 
-    Validates the scan row exists for that tenant (shared-DB contract check).
-    Orchestration (Celery + LangGraph stages) attaches here next phase.
+    Validates the scan row exists for that tenant (shared-DB contract check),
+    then dispatches a Celery job that runs the LangGraph monitor stage and
+    writes mentions + share_of_voice.
     """
     with SessionLocal() as session:
         scan = ScanRepository(session).get(body.account_id, body.scan_id)
@@ -57,4 +58,10 @@ async def run_scan(body: ScanRunRequest) -> ScanRunResponse:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="scan not found for this account",
         )
-    return ScanRunResponse(accepted=True, scan_id=body.scan_id)
+
+    # Imported here so the FastAPI app doesn't require a broker connection just
+    # to import; enqueue needs Redis (from infra) to be up.
+    from app.pipeline.tasks import run_scan_task
+
+    async_result = run_scan_task.delay(str(body.scan_id), str(body.account_id))
+    return ScanRunResponse(accepted=True, scan_id=body.scan_id, task_id=async_result.id)

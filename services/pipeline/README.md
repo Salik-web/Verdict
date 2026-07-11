@@ -97,6 +97,50 @@ simulated spend).
 Checkpoint: `uv run pytest tests/test_gateway.py` — with no keys, a mock call per
 task returns realistic text and logs a cost row; flipping a model is config-only.
 
+## Monitor stage (visibility measurement)
+
+The first pipeline stage — [`app/pipeline/monitor/`](app/pipeline/monitor/) —
+measures whether AI engines recommend the account's brand. It's a LangGraph
+(`measure_and_parse → compute_share_of_voice`) with typed Pydantic I/O
+([`app/pipeline/contracts.py`](app/pipeline/contracts.py)), so it's swappable and
+testable in isolation.
+
+Flow, per scan:
+
+1. **Prompt generation** ([prompts.py](app/pipeline/monitor/prompts.py)) — from a
+   category, auto-generate ~25-30 high-intent buyer prompts via the gateway
+   `generation` task. Templates live in
+   [`config/prompts/`](config/prompts/), never inline.
+2. **Measure** ([measure.py](app/pipeline/monitor/measure.py)) — ask each engine
+   each active prompt `repeats` times (gateway `measurement` task).
+3. **Parse** ([parse.py](app/pipeline/monitor/parse.py)) — LLM-as-judge (gateway
+   `processing` task) extracts a typed `ParsedMention` (mentioned, position,
+   sentiment, cited_urls, competitors). One focal-brand row → `mentions`.
+4. **Share of voice** ([sov.py](app/pipeline/monitor/sov.py)) — aggregate across
+   the repeats (never live) → `share_of_voice`. `mention_rate = mentions/obs`,
+   `sov_pct = mentions / all-brand-mentions`, plus `avg_position`.
+
+**Data-driven** ([config/monitor.yaml](config/monitor.yaml)): engines, `repeats`,
+and prompt count. Starts with one engine; adding Perplexity Sonar / OpenAI /
+Gemini is a new engine entry + a gateway task in
+[models.yaml](config/models.yaml) — not a rewrite.
+
+**Trigger:** the TS API calls `POST /internal/scans/run`, which enqueues the
+`monitor.run_scan` Celery task
+([app/pipeline/tasks.py](app/pipeline/tasks.py)). The runner
+([runner.py](app/pipeline/monitor/runner.py)) drives the scan lifecycle
+(`pending → running → completed/failed`) and persists via repositories.
+
+Run a worker (needs Redis from `infra/`):
+
+```bash
+uv run celery -A app.celery_app worker --loglevel=info
+```
+
+Checkpoint (mock mode, no keys): `uv run pytest tests/test_monitor_stage.py
+tests/test_scan_run.py` — the stage's SoV math is exact, and a scan for the demo
+account writes 15 mentions + a share_of_voice roll-up.
+
 ## Config
 
 All env vars are in [`.env.example`](.env.example), validated by

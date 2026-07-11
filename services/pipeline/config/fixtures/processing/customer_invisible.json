@@ -1,0 +1,18 @@
+{
+  "scenario": "customer_invisible",
+  "description": "Parser output for a 'customer invisible' answer: the target brand (Acme) is NOT mentioned; only competitors appear. Matches measurement/customer_invisible.json.",
+  "text": {
+    "brand": "Acme Analytics",
+    "mentioned": false,
+    "position": null,
+    "sentiment": null,
+    "sentiment_score": null,
+    "cited_urls": [],
+    "competitors": [
+      { "brand": "Globex Insights", "position": 1, "sentiment": "positive" },
+      { "brand": "Initech Metrics", "position": 2, "sentiment": "neutral" },
+      { "brand": "Amplitude", "position": 3, "sentiment": "neutral" }
+    ]
+  },
+  "usage": { "prompt_tokens": 588, "completion_tokens": 64 }
+}
