@@ -16,10 +16,11 @@ pnpm --filter @geo/api db:migrate   # apply pending migrations
 pnpm --filter @geo/api db:seed      # load the demo account (idempotent)
 ```
 
-| Migration              | Purpose                                                            |
-| ---------------------- | ------------------------------------------------------------------ |
-| `0001_init.sql`        | Extensions: `vector` (pgvector), `pgcrypto` (`gen_random_uuid()`). |
-| `0002_core_schema.sql` | Enums, `set_updated_at()` trigger, all core tables + indexes.      |
+| Migration                  | Purpose                                                            |
+| -------------------------- | ------------------------------------------------------------------ |
+| `0001_init.sql`            | Extensions: `vector` (pgvector), `pgcrypto` (`gen_random_uuid()`). |
+| `0002_core_schema.sql`     | Enums, `set_updated_at()` trigger, all core tables + indexes.      |
+| `0003_cms_credentials.sql` | Envelope-encrypted CMS credentials table.                          |
 
 ## Conventions
 
@@ -139,3 +140,11 @@ key)`. Generators MUST use these rather than inventing facts.
 `provider`, `model`, `operation`, `prompt_tokens`/`completion_tokens`/
 `total_tokens`, `cost_usd numeric(12,6)`, `mock` (was it a mock call), optional
 `job_id`/`scan_id`, `created_at`.
+
+### cms_credentials — envelope-encrypted CMS secrets
+
+`cms_type` (config taxonomy), `name` (unique per account, case-insensitive),
+`key_version`, `encrypted_dek bytea` (per-row data key wrapped by the master
+key), `ciphertext bytea` (credentials JSON encrypted by the DEK), `status`,
+`last_used_at`. Both bytea columns pack `12-byte IV || 16-byte GCM tag || data`.
+Plaintext never touches the DB and is never returned by the API.

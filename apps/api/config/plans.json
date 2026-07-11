@@ -1,0 +1,24 @@
+{
+  "$comment": "Per-plan usage quotas. Data-driven: change limits here, never in code. scans_per_day caps pipeline cost; api_rpm is the general per-account request ceiling.",
+  "plans": {
+    "free": {
+      "scans_per_day": 2,
+      "api_rpm": 60,
+      "max_prompts": 10,
+      "max_competitors": 5
+    },
+    "pro": {
+      "scans_per_day": 20,
+      "api_rpm": 300,
+      "max_prompts": 100,
+      "max_competitors": 25
+    },
+    "enterprise": {
+      "scans_per_day": 100,
+      "api_rpm": 1000,
+      "max_prompts": 1000,
+      "max_competitors": 100
+    }
+  },
+  "default_plan": "free"
+}

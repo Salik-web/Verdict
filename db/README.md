@@ -38,7 +38,8 @@ files — update them together. Drizzle never generates the SQL.
 - `vector` (pgvector) extension is enabled for embeddings; embedding columns are
   added in the phase that consumes them.
 
-| Migration                                                 | Purpose                                                     |
-| --------------------------------------------------------- | ----------------------------------------------------------- |
-| [`0001_init.sql`](migrations/0001_init.sql)               | Enable `vector` + `pgcrypto` extensions.                    |
-| [`0002_core_schema.sql`](migrations/0002_core_schema.sql) | Enums, `set_updated_at` trigger, all core tables + indexes. |
+| Migration                                                         | Purpose                                                     |
+| ----------------------------------------------------------------- | ----------------------------------------------------------- |
+| [`0001_init.sql`](migrations/0001_init.sql)                       | Enable `vector` + `pgcrypto` extensions.                    |
+| [`0002_core_schema.sql`](migrations/0002_core_schema.sql)         | Enums, `set_updated_at` trigger, all core tables + indexes. |
+| [`0003_cms_credentials.sql`](migrations/0003_cms_credentials.sql) | Envelope-encrypted CMS credentials table.                   |

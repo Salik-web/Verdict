@@ -3,6 +3,7 @@ import type { Database } from "../db/client.js";
 import { competitors } from "../db/schema.js";
 
 export type Competitor = typeof competitors.$inferSelect;
+export type NewCompetitor = typeof competitors.$inferInsert;
 
 /**
  * Tenant-scoped: every method requires accountId and filters on it. There is no
@@ -25,5 +26,33 @@ export class CompetitorRepository {
       .where(and(eq(competitors.accountId, accountId), eq(competitors.id, id)))
       .limit(1);
     return rows[0] ?? null;
+  }
+
+  async create(data: NewCompetitor): Promise<Competitor> {
+    const rows = await this.db.insert(competitors).values(data).returning();
+    return rows[0]!;
+  }
+
+  async update(
+    accountId: string,
+    id: string,
+    patch: Partial<
+      Pick<NewCompetitor, "name" | "domain" | "aliases" | "isSelf">
+    >,
+  ): Promise<Competitor | null> {
+    const rows = await this.db
+      .update(competitors)
+      .set(patch)
+      .where(and(eq(competitors.accountId, accountId), eq(competitors.id, id)))
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  async delete(accountId: string, id: string): Promise<boolean> {
+    const rows = await this.db
+      .delete(competitors)
+      .where(and(eq(competitors.accountId, accountId), eq(competitors.id, id)))
+      .returning({ id: competitors.id });
+    return rows.length > 0;
   }
 }

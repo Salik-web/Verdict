@@ -12,7 +12,7 @@ try {
 
 async function main(): Promise<void> {
   const config = loadConfig();
-  const app = buildServer(config);
+  const { app } = await buildServer(config);
 
   try {
     await app.listen({ host: config.HOST, port: config.PORT });

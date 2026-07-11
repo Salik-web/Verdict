@@ -24,6 +24,19 @@ const envSchema = z.object({
   INTERNAL_SHARED_SECRET: z.string().min(8),
   // Base URL of the Python pipeline's FastAPI service.
   PIPELINE_URL: z.string().url().default("http://localhost:8000"),
+
+  // Frontend origin for CORS (locked; not '*').
+  FRONTEND_ORIGIN: z.string().url().default("http://localhost:5173"),
+  // Signs session cookies. Rotate to invalidate all cookies.
+  COOKIE_SECRET: z.string().min(16),
+  // 32-byte hex master key (KEK) for envelope encryption of CMS credentials.
+  // Generate: openssl rand -hex 32
+  MASTER_ENCRYPTION_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, "must be 32 bytes hex (64 hex chars)"),
+  // Session lifetimes (seconds).
+  SESSION_TTL_S: z.coerce.number().int().positive().default(900), // 15 min
+  REFRESH_TTL_S: z.coerce.number().int().positive().default(1209600), // 14 days
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

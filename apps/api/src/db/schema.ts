@@ -8,6 +8,7 @@
 import {
   bigint,
   boolean,
+  customType,
   index,
   integer,
   inet,
@@ -20,6 +21,13 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+
+/** Postgres bytea (Drizzle has no built-in). Values are Buffers. */
+const bytea = customType<{ data: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 // ── Enums (mirror CREATE TYPE ... AS ENUM) ─────────────────────────────
 export const userRole = pgEnum("user_role", ["owner", "admin", "member"]);
@@ -441,4 +449,25 @@ export const llmCostLog = pgTable(
     index("llm_cost_log_account_created_idx").on(t.accountId, t.createdAt),
     index("llm_cost_log_model_idx").on(t.model),
   ],
+);
+
+// ── cms_credentials (envelope-encrypted; plaintext never stored) ───────
+export const cmsCredentials = pgTable(
+  "cms_credentials",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    cmsType: text("cms_type").notNull(),
+    name: text("name").notNull(),
+    keyVersion: integer("key_version").notNull().default(1),
+    encryptedDek: bytea("encrypted_dek").notNull(),
+    ciphertext: bytea("ciphertext").notNull(),
+    status: text("status").notNull().default("active"),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [index("cms_credentials_account_id_idx").on(t.accountId)],
 );

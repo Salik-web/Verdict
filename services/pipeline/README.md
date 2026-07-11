@@ -32,10 +32,11 @@ uv run black --check .
 
 ## Endpoints
 
-| Method | Path             | Auth                | Purpose                                                   |
-| ------ | ---------------- | ------------------- | --------------------------------------------------------- |
-| GET    | `/health`        | none                | Liveness; returns the shared `HealthResponse` shape.      |
-| GET    | `/internal/ping` | `x-internal-secret` | Authenticated liveness for internal callers (the TS API). |
+| Method | Path                  | Auth                | Purpose                                                                                                                              |
+| ------ | --------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/health`             | none                | Liveness; returns the shared `HealthResponse` shape.                                                                                 |
+| GET    | `/internal/ping`      | `x-internal-secret` | Authenticated liveness for internal callers (the TS API).                                                                            |
+| POST   | `/internal/scans/run` | `x-internal-secret` | Scan trigger from the TS API; validates the scan row exists in the shared DB, acknowledges with 202. Orchestration lands next phase. |
 
 ## Database
 

@@ -21,6 +21,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Integer,
+    LargeBinary,
     Numeric,
     Text,
 )
@@ -415,3 +416,21 @@ class LlmCostLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         SA_TIMESTAMP(timezone=True), server_default=sa_func.now(), nullable=False
     )
+
+
+class CmsCredential(TimestampMixin, Base):
+    """Envelope-encrypted CMS credentials; plaintext never stored or returned."""
+
+    __tablename__ = "cms_credentials"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    account_id: Mapped[uuid.UUID] = _account_fk()
+    cms_type: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    key_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="1"
+    )
+    encrypted_dek: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    ciphertext: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="active")
+    last_used_at: Mapped[datetime | None] = mapped_column(SA_TIMESTAMP(timezone=True))

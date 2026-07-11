@@ -56,13 +56,15 @@ uv run uvicorn app.main:app --reload
 See each service's README for details:
 [apps/api](apps/api/README.md) · [services/pipeline](services/pipeline/README.md) · [db](db/README.md) · [schema contract](db/SCHEMA.md).
 
-## Checkpoint (Phase 2)
+## Checkpoint (Phase 4)
 
-Migrations apply cleanly on a fresh DB; the `vector` extension is enabled (a
-`vector` column can be created); the seed loads the demo account; **both**
-services read the demo account through their repository layers. The SQL in
-[`/db`](db/) is the source of truth, mirrored by Drizzle (TS) and SQLAlchemy
-(Python).
+A user can sign up and log in (local auth, argon2 + httpOnly sessions with
+refresh rotation — zero external keys), create competitors and prompts, and
+`POST /scans` creates a scan row and reaches the Python service through the
+authenticated internal client. Cross-tenant access is blocked (scoped lookups,
+404 not 403). Rate limits + plan quotas return 429 with `Retry-After`. CMS
+credentials are envelope-encrypted and never echoed. Run it:
+`pnpm --filter @geo/api test` (infra + pipeline must be up).
 
 ## Conventions
 

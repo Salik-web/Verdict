@@ -1,0 +1,290 @@
+/**
+ * Phase 4 checkpoint (node:test + app.inject against live Postgres/Redis,
+ * plus the live Python pipeline for POST /scans):
+ *
+ *   signup -> login -> create competitors+prompts -> POST /scans reaches the
+ *   pipeline; cross-tenant access is blocked; secrets are never echoed.
+ *
+ * Run: pnpm --filter @geo/api test   (infra + pipeline must be running)
+ */
+import assert from "node:assert/strict";
+import { after, before, describe, it } from "node:test";
+import { loadConfig } from "../config.js";
+import { buildServer } from "../server.js";
+
+// Loads apps/api/.env (cwd when run via `pnpm --filter @geo/api test`).
+try {
+  process.loadEnvFile();
+} catch {
+  /* fall back to ambient env */
+}
+
+const run = Date.now().toString(36);
+// Unique per-run "client IPs" so auth rate limits never collide across runs.
+const ipA = { "x-forwarded-for": `10.1.${Math.floor(Math.random() * 250)}.1` };
+const ipB = { "x-forwarded-for": `10.2.${Math.floor(Math.random() * 250)}.2` };
+
+type App = Awaited<ReturnType<typeof buildServer>>["app"];
+let app: App;
+
+function cookieHeader(res: {
+  cookies: Array<{ name: string; value: string }>;
+}) {
+  return res.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+}
+
+describe("phase 4 checkpoint", async () => {
+  let cookieA = "";
+  let cookieB = "";
+  let competitorId = "";
+  let scanId = "";
+
+  before(async () => {
+    ({ app } = await buildServer(loadConfig()));
+    await app.ready();
+  });
+  after(async () => {
+    await app.close();
+  });
+
+  it("signs up two users in two tenants", async () => {
+    const a = await app.inject({
+      method: "POST",
+      url: "/auth/signup",
+      headers: ipA,
+      payload: {
+        email: `alice-${run}@test.dev`,
+        password: "correct-horse-battery",
+        accountName: `Tenant A ${run}`,
+      },
+    });
+    assert.equal(a.statusCode, 201);
+    cookieA = cookieHeader(a);
+    assert.match(cookieA, /geo_session=/);
+
+    const b = await app.inject({
+      method: "POST",
+      url: "/auth/signup",
+      headers: ipB,
+      payload: {
+        email: `bob-${run}@test.dev`,
+        password: "correct-horse-battery",
+        accountName: `Tenant B ${run}`,
+      },
+    });
+    assert.equal(b.statusCode, 201);
+    cookieB = cookieHeader(b);
+  });
+
+  it("logs in and reads /auth/me", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/auth/login",
+      headers: ipA,
+      payload: {
+        email: `alice-${run}@test.dev`,
+        password: "correct-horse-battery",
+      },
+    });
+    assert.equal(res.statusCode, 200);
+    cookieA = cookieHeader(res);
+
+    const me = await app.inject({
+      method: "GET",
+      url: "/auth/me",
+      headers: { cookie: cookieA },
+    });
+    assert.equal(me.statusCode, 200);
+    assert.equal(me.json().email, `alice-${run}@test.dev`);
+  });
+
+  it("rejects wrong passwords and anonymous access", async () => {
+    const bad = await app.inject({
+      method: "POST",
+      url: "/auth/login",
+      headers: ipA,
+      payload: { email: `alice-${run}@test.dev`, password: "wrong-password!" },
+    });
+    assert.equal(bad.statusCode, 401);
+
+    const anon = await app.inject({ method: "GET", url: "/competitors" });
+    assert.equal(anon.statusCode, 401);
+  });
+
+  it("creates competitors and prompts for tenant A", async () => {
+    const comp = await app.inject({
+      method: "POST",
+      url: "/competitors",
+      headers: { cookie: cookieA },
+      payload: { name: "Globex", domain: "globex.example.com" },
+    });
+    assert.equal(comp.statusCode, 201);
+    competitorId = comp.json().id;
+
+    const prompt = await app.inject({
+      method: "POST",
+      url: "/prompts",
+      headers: { cookie: cookieA },
+      payload: { text: "Best product analytics tool for B2B SaaS?" },
+    });
+    assert.equal(prompt.statusCode, 201);
+  });
+
+  it("validates input with zod (400 on garbage)", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/prompts",
+      headers: { cookie: cookieA },
+      payload: { text: "x" }, // below min length
+    });
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.json().error, "invalid_request");
+  });
+
+  it("BLOCKS cross-tenant access (B cannot see A's data)", async () => {
+    const direct = await app.inject({
+      method: "GET",
+      url: `/competitors/${competitorId}`,
+      headers: { cookie: cookieB },
+    });
+    assert.equal(direct.statusCode, 404); // scoped lookup: not found, not leaked
+
+    const patch = await app.inject({
+      method: "PATCH",
+      url: `/competitors/${competitorId}`,
+      headers: { cookie: cookieB },
+      payload: { name: "hijacked" },
+    });
+    assert.equal(patch.statusCode, 404);
+
+    const list = await app.inject({
+      method: "GET",
+      url: "/competitors",
+      headers: { cookie: cookieB },
+    });
+    assert.equal(list.statusCode, 200);
+    assert.equal(list.json().length, 0); // B's tenant is empty
+  });
+
+  it("POST /scans creates a row and reaches the Python pipeline", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/scans",
+      headers: { cookie: cookieA },
+      payload: { engines: ["chatgpt", "perplexity"] },
+    });
+    assert.equal(
+      res.statusCode,
+      202,
+      `expected 202, got ${res.statusCode}: ${res.body} — is the Python service running?`,
+    );
+    scanId = res.json().scanId;
+    assert.ok(scanId);
+
+    const fetched = await app.inject({
+      method: "GET",
+      url: `/scans/${scanId}`,
+      headers: { cookie: cookieA },
+    });
+    assert.equal(fetched.statusCode, 200);
+    assert.equal(fetched.json().status, "pending");
+  });
+
+  it("blocks cross-tenant scan reads and enforces the plan quota", async () => {
+    const cross = await app.inject({
+      method: "GET",
+      url: `/scans/${scanId}`,
+      headers: { cookie: cookieB },
+    });
+    assert.equal(cross.statusCode, 404);
+
+    // free plan: 2 scans/day. One used; second passes, third must 429.
+    const second = await app.inject({
+      method: "POST",
+      url: "/scans",
+      headers: { cookie: cookieA },
+      payload: {},
+    });
+    assert.equal(second.statusCode, 202);
+
+    const third = await app.inject({
+      method: "POST",
+      url: "/scans",
+      headers: { cookie: cookieA },
+      payload: {},
+    });
+    assert.equal(third.statusCode, 429);
+    assert.equal(third.json().error, "quota_exceeded");
+    assert.ok(
+      Number(third.headers["retry-after"]) > 0,
+      "Retry-After header set",
+    );
+  });
+
+  it("stores CMS credentials encrypted and never echoes them", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/cms-credentials",
+      headers: { cookie: cookieA },
+      payload: {
+        cmsType: "wordpress",
+        name: "Main blog",
+        credentials: {
+          url: "https://blog.example.com",
+          app_password: "s3cr3t-value",
+        },
+      },
+    });
+    assert.equal(res.statusCode, 201);
+    const body = res.body;
+    assert.ok(!body.includes("s3cr3t-value"), "secret must not be echoed");
+    assert.ok(!body.includes("ciphertext"), "ciphertext must not be returned");
+
+    const list = await app.inject({
+      method: "GET",
+      url: "/cms-credentials",
+      headers: { cookie: cookieA },
+    });
+    assert.equal(list.statusCode, 200);
+    assert.ok(!list.body.includes("s3cr3t-value"));
+  });
+
+  it("refresh rotation works and reused tokens are rejected", async () => {
+    const login = await app.inject({
+      method: "POST",
+      url: "/auth/login",
+      headers: ipA,
+      payload: {
+        email: `alice-${run}@test.dev`,
+        password: "correct-horse-battery",
+      },
+    });
+    const refreshCookie = login.cookies.find((c) => c.name === "geo_refresh")!;
+    const doRefresh = () =>
+      app.inject({
+        method: "POST",
+        url: "/auth/refresh",
+        headers: { cookie: `geo_refresh=${refreshCookie.value}` },
+      });
+
+    const first = await doRefresh();
+    assert.equal(first.statusCode, 200); // rotated
+
+    const replay = await doRefresh();
+    assert.equal(replay.statusCode, 401); // same token again -> rejected
+  });
+
+  it("sets security headers and locks CORS", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/health",
+      headers: { origin: "https://evil.example.com" },
+    });
+    assert.ok(res.headers["strict-transport-security"]);
+    assert.equal(res.headers["x-frame-options"], "DENY");
+    assert.notEqual(
+      res.headers["access-control-allow-origin"],
+      "https://evil.example.com",
+    );
+  });
+});
