@@ -1,0 +1,17 @@
+# Diagnosis stage settings (scraper caps + freshness thresholds).
+# The caps keep the scraper polite and un-weaponizable (principle 7 / SSRF).
+
+scraper:
+  user_agent: "GEO-DiagnosisBot/0.1 (+https://geo.example/bot)"
+  timeout_s: 10
+  max_pages_per_scan: 10 # hard cap on outbound fetches per diagnosis
+  max_redirects: 3 # every hop is re-checked by the SSRF guard
+  max_bytes: 2000000 # 2 MB response cap
+  rate_limit_delay_s: 0.3 # politeness delay between fetches
+  respect_robots: true # obey the target's robots.txt for our own UA
+
+llms_txt:
+  stale_days: 180 # /llms.txt older than this is flagged stale
+
+freshness:
+  stale_days: 365 # page with no fresh signal within this window is stale

@@ -141,6 +141,42 @@ Checkpoint (mock mode, no keys): `uv run pytest tests/test_monitor_stage.py
 tests/test_scan_run.py` — the stage's SoV math is exact, and a scan for the demo
 account writes 15 mentions + a share_of_voice roll-up.
 
+## Diagnosis stage (why the customer loses)
+
+[`app/pipeline/diagnosis/`](app/pipeline/diagnosis/) — a LangGraph
+(`fetch_home → run_checks → map_gaps`) that audits a site's SEO + GEO health and
+emits typed `Gap` rows. Pure w.r.t. the DB; the network is reached only through
+an injected `Fetcher`, and LLM calls go through the gateway (mock by default).
+
+- **SSRF guard** ([ssrf.py](app/pipeline/diagnosis/ssrf.py)) — every fetch (and
+  every redirect hop) must pass `assert_public_url`: only http/https to
+  globally-routable IPs. Private ranges, loopback, link-local, the
+  `169.254.169.254` metadata endpoint, and CGNAT are rejected. Scraped content is
+  untrusted **data**, never fed to a model as instructions.
+- **Fetcher** ([fetcher.py](app/pipeline/diagnosis/fetcher.py)) — `HttpxFetcher`
+  with caps (timeout, max redirects, size), a polite UA, and rate limiting. A
+  `PlaywrightFetcher` (JS render) can drop in behind the same interface.
+- **Crawler / robots audit** ([robots_audit.py](app/pipeline/diagnosis/robots_audit.py))
+  — classifies every AI bot via [config/ai_bots.yaml](config/ai_bots.yaml) into
+  **TRAINING** vs **SEARCH**. A blocked SEARCH bot is **urgent**; the named trap
+  (GPTBot allowed while OAI-SearchBot blocked) is flagged. Bot list is config.
+- **llms.txt** ([llms_txt.py](app/pipeline/diagnosis/llms_txt.py)) — flag if
+  missing/stale.
+- **SEO** ([seo.py](app/pipeline/diagnosis/seo.py)) — schema, headings,
+  indexability, freshness, page-weight (deterministic).
+- **GEO** ([geo.py](app/pipeline/diagnosis/geo.py)) — owned comparison page,
+  presence in cited third-party sources, and an LLM-as-judge quotability /
+  entity-consistency assessment via the gateway.
+
+Every failing finding maps through
+[config/gap_taxonomy.yaml](config/gap_taxonomy.yaml) to a `Gap` with a `fix_type`
+(consumed by the Execute stage) and a rank score. Gaps persist to the `gaps`
+table (`fix_type`/layer/severity in `details` jsonb — no schema change).
+
+Checkpoint (no keys): `uv run pytest tests/test_ssrf.py tests/test_bot_audit.py
+tests/test_diagnosis_stage.py`. Live scrape of example.com is opt-in:
+`RUN_LIVE_SCRAPE=1 uv run pytest tests/test_diagnosis_live.py`.
+
 ## Config
 
 All env vars are in [`.env.example`](.env.example), validated by

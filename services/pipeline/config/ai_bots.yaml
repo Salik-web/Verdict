@@ -1,0 +1,76 @@
+# AI crawler / bot registry for the robots.txt audit.
+#
+# Updatable CONFIG, never hardcoded (principle 3). Each bot's `token` is the
+# User-agent string matched against robots.txt.
+#
+# TRAINING bots feed model training corpora; blocking them is often a deliberate
+# choice (protect content), so a block is informational.
+# SEARCH bots are what let an AI assistant fetch + CITE you at answer time;
+# blocking one is URGENT — you become invisible to that engine.
+
+bots:
+  # ── TRAINING ──────────────────────────────────────────────────────────
+  - name: GPTBot
+    token: GPTBot
+    category: training
+    vendor: OpenAI
+  - name: ClaudeBot
+    token: ClaudeBot
+    category: training
+    vendor: Anthropic
+  - name: Google-Extended
+    token: Google-Extended
+    category: training
+    vendor: Google
+  - name: CCBot
+    token: CCBot
+    category: training
+    vendor: Common Crawl
+  - name: Applebot-Extended
+    token: Applebot-Extended
+    category: training
+    vendor: Apple
+
+  # ── SEARCH (citation-time retrieval) ─────────────────────────────────
+  - name: OAI-SearchBot
+    token: OAI-SearchBot
+    category: search
+    vendor: OpenAI
+  - name: ChatGPT-User
+    token: ChatGPT-User
+    category: search
+    vendor: OpenAI
+  - name: Claude-SearchBot
+    token: Claude-SearchBot
+    category: search
+    vendor: Anthropic
+  - name: Claude-User
+    token: Claude-User
+    category: search
+    vendor: Anthropic
+  - name: PerplexityBot
+    token: PerplexityBot
+    category: search
+    vendor: Perplexity
+  - name: Perplexity-User
+    token: Perplexity-User
+    category: search
+    vendor: Perplexity
+  - name: Bingbot
+    token: Bingbot
+    category: search
+    vendor: Microsoft
+  - name: Googlebot
+    token: Googlebot
+    category: search
+    vendor: Google
+
+# Named traps: a training bot allowed while its paired search bot is blocked —
+# you feed the model but can never be cited by it. Urgent.
+traps:
+  - name: gptbot_allowed_searchbot_blocked
+    training: GPTBot
+    search: OAI-SearchBot
+    message: >-
+      GPTBot (training) is allowed but OAI-SearchBot (search) is blocked: your
+      content trains ChatGPT yet can never be cited by it. Unblock OAI-SearchBot.

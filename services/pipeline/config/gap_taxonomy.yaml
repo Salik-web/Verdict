@@ -1,0 +1,54 @@
+# Gap taxonomy: every diagnosis finding maps to one of these gap types, each
+# mapped to a fix type (the Execute stage consumes fix_type) and a base rank
+# score (0..1, higher = more urgent). Updatable CONFIG, never hardcoded.
+
+gaps:
+  missing_from_listicles:
+    layer: geo
+    fix_type: earn_listicle_placement
+    base_rank: 0.80
+    label: "Not present in the third-party listicles engines cite"
+
+  no_owned_comparison_page:
+    layer: geo
+    fix_type: generate_comparison_page
+    base_rank: 0.90
+    label: "No owned 'us vs competitor' comparison page"
+
+  weak_page_structure:
+    layer: seo
+    fix_type: restructure_for_answers
+    base_rank: 0.55
+    label: "Content not in quotable, direct-answer structure (headings/Q&A)"
+
+  missing_schema:
+    layer: seo
+    fix_type: add_schema_markup
+    base_rank: 0.60
+    label: "No structured data (JSON-LD / schema.org) on the page"
+
+  entity_inconsistency:
+    layer: geo
+    fix_type: normalize_entity
+    base_rank: 0.50
+    label: "Brand name / description inconsistent across sources"
+
+  blocked_crawler:
+    layer: crawler
+    fix_type: fix_robots_txt
+    base_rank: 1.00
+    label: "A citation-time SEARCH bot is blocked by robots.txt"
+
+  missing_llms_txt:
+    layer: geo
+    fix_type: add_llms_txt
+    base_rank: 0.40
+    label: "No /llms.txt to guide AI assistants (or stale)"
+
+# Severity multiplier applied to base_rank when producing a Gap's rank_score.
+severity_weights:
+  urgent: 1.0
+  high: 0.9
+  medium: 0.7
+  low: 0.5
+  info: 0.3

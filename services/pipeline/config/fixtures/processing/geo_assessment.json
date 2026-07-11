@@ -1,0 +1,15 @@
+{
+  "scenario": "geo_assessment",
+  "description": "Mock LLM-as-judge assessment of a page's GEO readiness (quotability + entity consistency). Returned by the gateway 'processing' task in diagnosis.",
+  "text": {
+    "quotable": false,
+    "direct_answer_style": false,
+    "entity_consistent": true,
+    "reasons": [
+      "Content is long-form marketing prose without concise, extractable answers.",
+      "No FAQ or Q&A blocks that an AI assistant can quote directly.",
+      "Key claims are not stated as standalone, citable sentences."
+    ]
+  },
+  "usage": { "prompt_tokens": 720, "completion_tokens": 96 }
+}
