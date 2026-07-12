@@ -51,3 +51,21 @@ VALUES
   ('00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-000000000001',
    'Top alternatives to Globex Insights for product teams?', 'alternatives', 'competitive', true)
 ON CONFLICT (id) DO NOTHING;
+
+-- Verified facts (authoritative source of truth for generators) --------------
+INSERT INTO verified_facts (id, account_id, fact_type, key, value, source, is_active)
+VALUES
+  ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-000000000001',
+   'pricing', 'starting_price', '{"display": "$0, usage-based"}',
+   'https://acme.example.com/pricing', true),
+  ('00000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-000000000001',
+   'pricing', 'free_tier', '{"display": "1M events/mo free"}',
+   'https://acme.example.com/pricing', true),
+  ('00000000-0000-0000-0000-0000000000f3', '00000000-0000-0000-0000-000000000001',
+   'feature', 'warehouse_native',
+   '{"display": "Warehouse-native (BigQuery, Snowflake, Redshift)"}',
+   'https://acme.example.com/features', true),
+  ('00000000-0000-0000-0000-0000000000f4', '00000000-0000-0000-0000-000000000001',
+   'feature', 'self_serve_onboarding', '{"display": "Self-serve onboarding"}',
+   'https://acme.example.com/features', true)
+ON CONFLICT (id) DO NOTHING;

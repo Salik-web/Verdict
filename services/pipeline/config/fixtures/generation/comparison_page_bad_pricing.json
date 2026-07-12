@@ -1,0 +1,23 @@
+{
+  "scenario": "comparison_page_bad_pricing",
+  "description": "A HALLUCINATED asset: the self pricing claim ($49/month) does NOT match the verified fact ($0, usage-based). Output validation must reject it.",
+  "text": {
+    "type": "comparison_page",
+    "title": "Acme Analytics vs Globex Insights",
+    "html": "<h1>Acme Analytics vs Globex Insights</h1><p>Acme Analytics starts at $49/month.</p>",
+    "faq_jsonld": {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": []
+    },
+    "claims": [
+      {
+        "fact_type": "pricing",
+        "key": "starting_price",
+        "value": "$49/month",
+        "about": "self"
+      }
+    ]
+  },
+  "usage": { "prompt_tokens": 610, "completion_tokens": 90 }
+}

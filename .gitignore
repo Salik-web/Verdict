@@ -34,3 +34,6 @@ coverage/
 # ---- Docker / local data ----
 infra/data/
 *.log
+
+# ---- Generated pipeline assets (downloadable artifacts) ----
+services/pipeline/artifacts/

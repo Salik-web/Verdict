@@ -57,6 +57,19 @@ class GapRepository:
             ).all()
         )
 
+    def list_open(
+        self,
+        account_id: uuid.UUID | str,
+        scan_id: uuid.UUID | str | None = None,
+    ) -> list[GapRow]:
+        stmt = select(GapRow).where(
+            GapRow.account_id == _as_uuid(account_id),
+            GapRow.status == "open",
+        )
+        if scan_id is not None:
+            stmt = stmt.where(GapRow.scan_id == _as_uuid(scan_id))
+        return list(self.session.scalars(stmt).all())
+
 
 def _as_uuid(value: uuid.UUID | str) -> uuid.UUID:
     return value if isinstance(value, uuid.UUID) else uuid.UUID(value)

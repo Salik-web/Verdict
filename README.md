@@ -43,33 +43,66 @@ cp apps/api/.env.example apps/api/.env
 pnpm --filter @geo/api db:migrate
 pnpm --filter @geo/api db:seed
 
-# 4. TypeScript API  (http://localhost:3000/health)
+# 3. TypeScript API  (http://localhost:3000/health)
 pnpm --filter @geo/api dev
 
-# 5. Python pipeline  (http://localhost:8000/health)
+# 4. Python pipeline  (http://localhost:8000/health)
 cd services/pipeline
 cp .env.example .env
 uv sync
 uv run uvicorn app.main:app --reload
 ```
 
+**Mock-first:** the entire pipeline runs end-to-end with **no API keys**
+(`GATEWAY_MODE=mock`, the default) — realistic canned responses from fixtures.
+Real keys are a one-line config switch at the end.
+
 See each service's README for details:
 [apps/api](apps/api/README.md) · [services/pipeline](services/pipeline/README.md) · [db](db/README.md) · [schema contract](db/SCHEMA.md).
 
-## Checkpoint (Phase 4)
+## The pipeline (services/pipeline)
 
-A user can sign up and log in (local auth, argon2 + httpOnly sessions with
-refresh rotation — zero external keys), create competitors and prompts, and
-`POST /scans` creates a scan row and reaches the Python service through the
-authenticated internal client. Cross-tenant access is blocked (scoped lookups,
-404 not 403). Rate limits + plan quotas return 429 with `Retry-After`. CMS
-credentials are envelope-encrypted and never echoed. Run it:
-`pnpm --filter @geo/api test` (infra + pipeline must be up).
+All AI work runs as swappable, independently testable LangGraph stages, each with
+typed Pydantic I/O. Every model call goes through the **model gateway** — mode
+(`mock`/`dev`/`prod`) and task→model mapping live in config, not code. See the
+[pipeline README](services/pipeline/README.md) for detail.
+
+| Stage              | What it does                                                                                                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Model gateway**  | One entry point for every model call; mock mode (no keys), retries, caching, rate limiting, per-call cost logging.                                                                              |
+| **Monitor**        | Ask AI engines the account's prompts N times, parse each answer (LLM-as-judge) → `mentions`, compute smoothed **share of voice**.                                                               |
+| **Diagnose**       | SSRF-guarded scrape of the site; SEO + GEO checks, robots.txt **AI-bot audit** (blocked-search-bot + trap detection), llms.txt → typed `gaps`.                                                  |
+| **Plan + Execute** | Rank gaps (impact×control×confidence), generate the top fix (comparison page / robots.txt / llms.txt) using **verified facts only**, sanitize + validate, store a tagged, downloadable `asset`. |
+| **Verify**         | _(next)_ prove which fixes moved citations.                                                                                                                                                     |
+
+## Build progress
+
+Each phase is built, tested on one real example, and reviewed before the next.
+
+- **1 — Foundations:** monorepo, docker infra (Postgres+pgvector, Redis), health
+  checks, internal shared-secret auth between services.
+- **2 — Schema:** the full multi-tenant schema as SQL migrations (the contract),
+  mirrored in Drizzle + SQLAlchemy; repository layers; seed.
+- **3 — Model gateway:** provider abstraction, mock/dev/prod modes, fixtures,
+  cost tracking.
+- **4 — App layer:** local auth (argon2 + httpOnly sessions w/ refresh rotation),
+  tenant isolation (no IDOR), Zod validation, Redis rate limits + plan quotas,
+  security headers/CORS, CRUD + dashboard reads, `POST /scans` pipeline trigger,
+  envelope-encrypted CMS credentials.
+- **5 — Monitor:** visibility measurement + share of voice.
+- **6 — Diagnose:** SEO/GEO audit, AI-bot robots audit, SSRF-guarded scraper.
+- **7 — Plan + Execute:** gap ranking + the comparison-page/robots/llms
+  generators with verified-facts enforcement and HTML sanitization.
+- **8 — Verify:** _next._
+
+Checkpoints run in mock mode (no keys): `pnpm --filter @geo/api test` (TS) and
+`cd services/pipeline && uv run pytest` (pipeline).
 
 ## Conventions
 
 - Secrets live in `.env` (gitignored). `.env.example` lists every var. Model API
-  keys stay blank — the pipeline runs fully in **mock mode** without them (Phase 2).
+  keys stay blank — the pipeline runs fully in **mock mode** without them, via the
+  model gateway.
 - Everything typed and validated at boundaries: Zod/TS, Pydantic.
 - Multi-tenant from day one: `account_id` on every row and every query.
 - Secret scanning via [gitleaks](https://github.com/gitleaks/gitleaks)

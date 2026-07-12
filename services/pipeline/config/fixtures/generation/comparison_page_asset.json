@@ -1,0 +1,64 @@
+{
+  "scenario": "comparison_page_asset",
+  "description": "Structured comparison-page asset. Every self claim matches a seeded verified_fact. The html includes a <script> tag on purpose so the sanitizer's XSS stripping can be proven.",
+  "text": {
+    "type": "comparison_page",
+    "title": "Acme Analytics vs Globex Insights: An Honest Comparison",
+    "html": "<h1>Acme Analytics vs Globex Insights</h1><p>Choosing product analytics for your B2B SaaS team? Here's a fair, side-by-side look.</p><h2>Pricing</h2><p>Acme Analytics starts at $0, usage-based, with 1M events/mo free. Globex Insights starts at $99/mo.</p><h2>Where Acme stands out</h2><ul><li>Warehouse-native (BigQuery, Snowflake, Redshift)</li><li>Self-serve onboarding</li></ul><script>alert('xss')</script><h2>FAQ</h2><p>See structured data below.</p>",
+    "faq_jsonld": {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How much does Acme Analytics cost?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Acme Analytics starts at $0, usage-based, with 1M events/mo free."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is Acme Analytics warehouse-native?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes — Acme is warehouse-native across BigQuery, Snowflake, and Redshift."
+          }
+        }
+      ]
+    },
+    "claims": [
+      {
+        "fact_type": "pricing",
+        "key": "starting_price",
+        "value": "$0, usage-based",
+        "about": "self"
+      },
+      {
+        "fact_type": "pricing",
+        "key": "free_tier",
+        "value": "1M events/mo free",
+        "about": "self"
+      },
+      {
+        "fact_type": "feature",
+        "key": "warehouse_native",
+        "value": "Warehouse-native (BigQuery, Snowflake, Redshift)",
+        "about": "self"
+      },
+      {
+        "fact_type": "feature",
+        "key": "self_serve_onboarding",
+        "value": "Self-serve onboarding",
+        "about": "self"
+      },
+      {
+        "fact_type": "pricing",
+        "key": "competitor_price",
+        "value": "$99/mo",
+        "about": "competitor"
+      }
+    ]
+  },
+  "usage": { "prompt_tokens": 640, "completion_tokens": 420 }
+}

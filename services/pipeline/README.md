@@ -177,6 +177,37 @@ Checkpoint (no keys): `uv run pytest tests/test_ssrf.py tests/test_bot_audit.py
 tests/test_diagnosis_stage.py`. Live scrape of example.com is opt-in:
 `RUN_LIVE_SCRAPE=1 uv run pytest tests/test_diagnosis_live.py`.
 
+## Execution stage (plan the gaps, ship one fix)
+
+[`app/pipeline/execution/`](app/pipeline/execution/) — rank the gaps, then
+generate + validate the single highest-value fix.
+
+- **Planner** ([planner.py](app/pipeline/execution/planner.py)) — scores each gap
+  `impact × control × confidence` (config-weighted,
+  [config/planner.yaml](config/planner.yaml)) and dedups by `fix_type` (one asset
+  can resolve several queries), emitting a ranked backlog.
+- **Generator interface** ([base.py](app/pipeline/execution/base.py)) —
+  `generate(item, context) -> AssetDraft`. New fix types register in
+  [registry.py](app/pipeline/execution/registry.py) with no stage change.
+- **ComparisonPageGenerator** — gap + competitor + `verified_facts` → structured
+  HTML + FAQ JSON-LD via the gateway `generation` task. **Every customer-specific
+  claim must come from `verified_facts`.** Plus small **robots.txt fixer** and
+  **llms.txt generator** sharing the same interface.
+- **Validation** ([validate.py](app/pipeline/execution/validate.py)) — rejects
+  any `self` claim not backed by an active verified fact (hallucinated pricing →
+  `rejected`), and sanitizes HTML with **nh3** (scripts/dangerous attrs stripped,
+  XSS defense) before an asset is deliverable.
+- **Delivery** — asset content is written to a downloadable file
+  (`content_ref`) under `artifacts/` (gitignored); the `assets` row is tagged
+  with `target_prompt_ids` for later verification. `fix_type`/claims/violations
+  live in `metadata` jsonb (no schema change).
+
+Checkpoint (no keys): `uv run pytest tests/test_planner.py
+tests/test_execution_stage.py` — a `no_owned_comparison_page` gap yields a valid
+comparison page from verified facts only; injected fake pricing is rejected; the
+asset is tagged to its queries. `verified_facts` for the demo account are in the
+seed.
+
 ## Config
 
 All env vars are in [`.env.example`](.env.example), validated by

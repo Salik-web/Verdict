@@ -1,0 +1,49 @@
+# Planner: rank gaps by impact x control x confidence, config-weighted.
+#
+# Each factor is 0..1. score = impact^w_impact * control^w_control *
+# confidence^w_confidence. Weights let you emphasise a factor without touching
+# code. Gaps are deduped by fix_type (one page can resolve several queries).
+
+weights:
+  impact: 1.0
+  control: 1.0
+  confidence: 1.0
+
+default_factors:
+  impact: 0.5
+  control: 0.5
+  confidence: 0.5
+
+# Per gap_type factors:
+#   impact     — how much fixing it should move AI visibility
+#   control    — how much WE can fix it on the customer's site (vs third parties)
+#   confidence — how sure we are the fix helps
+gaps:
+  blocked_crawler:
+    impact: 0.95
+    control: 1.00
+    confidence: 0.95
+  no_owned_comparison_page:
+    impact: 0.90
+    control: 0.90
+    confidence: 0.85
+  missing_from_listicles:
+    impact: 0.80
+    control: 0.40 # third-party controlled — low control
+    confidence: 0.60
+  missing_schema:
+    impact: 0.60
+    control: 1.00
+    confidence: 0.90
+  weak_page_structure:
+    impact: 0.55
+    control: 0.90
+    confidence: 0.70
+  entity_inconsistency:
+    impact: 0.50
+    control: 0.80
+    confidence: 0.60
+  missing_llms_txt:
+    impact: 0.50
+    control: 1.00
+    confidence: 0.90
