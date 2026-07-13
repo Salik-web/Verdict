@@ -20,6 +20,10 @@ class AccountRepository:
     def get_by_slug(self, slug: str) -> Account | None:
         return self.session.scalars(select(Account).where(Account.slug == slug)).first()
 
+    def list_ids(self) -> list[uuid.UUID]:
+        """Every account id — the scheduler iterates these to find due scans."""
+        return list(self.session.scalars(select(Account.id)).all())
+
 
 def _as_uuid(value: uuid.UUID | str) -> uuid.UUID:
     return value if isinstance(value, uuid.UUID) else uuid.UUID(value)

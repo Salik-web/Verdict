@@ -73,7 +73,7 @@ typed Pydantic I/O. Every model call goes through the **model gateway** — mode
 | **Monitor**        | Ask AI engines the account's prompts N times, parse each answer (LLM-as-judge) → `mentions`, compute smoothed **share of voice**.                                                               |
 | **Diagnose**       | SSRF-guarded scrape of the site; SEO + GEO checks, robots.txt **AI-bot audit** (blocked-search-bot + trap detection), llms.txt → typed `gaps`.                                                  |
 | **Plan + Execute** | Rank gaps (impact×control×confidence), generate the top fix (comparison page / robots.txt / llms.txt) using **verified facts only**, sanitize + validate, store a tagged, downloadable `asset`. |
-| **Verify**         | _(next)_ prove which fixes moved citations.                                                                                                                                                     |
+| **Verify**         | Re-run a shipped asset's exact prompts (reusing Monitor), compare before/after share of voice → an honest `verifications` verdict + confidence; feed it back into the planner. Jittered scheduling + plan-quota double-check. |
 
 ## Build progress
 
@@ -93,7 +93,9 @@ Each phase is built, tested on one real example, and reviewed before the next.
 - **6 — Diagnose:** SEO/GEO audit, AI-bot robots audit, SSRF-guarded scraper.
 - **7 — Plan + Execute:** gap ranking + the comparison-page/robots/llms
   generators with verified-facts enforcement and HTML sanitization.
-- **8 — Verify:** _next._
+- **8 — Verify:** verification stage (before/after proof reusing Monitor, honest
+  verdict + confidence feeding back into the planner), jittered scheduling, and a
+  plan-quota double-check.
 
 Checkpoints run in mock mode (no keys): `pnpm --filter @geo/api test` (TS) and
 `cd services/pipeline && uv run pytest` (pipeline).

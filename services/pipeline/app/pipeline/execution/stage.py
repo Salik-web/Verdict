@@ -23,8 +23,9 @@ def generate_top_fix(
     context: GeneratorContext,
     gateway: Gateway | None = None,
     registry: dict[str, Generator] | None = None,
+    confidence_overrides: dict[str, float] | None = None,
 ) -> ExecutionOutput:
-    backlog = plan(gaps)
+    backlog = plan(gaps, confidence_overrides)
     if not backlog.items:
         raise ValueError("no gaps to plan")
     top = backlog.items[0]
@@ -51,5 +52,12 @@ class ExecutionStage:
         self._gateway = gateway
         self._registry = registry
 
-    def run(self, gaps: list[GapInput], context: GeneratorContext) -> ExecutionOutput:
-        return generate_top_fix(gaps, context, self._gateway, self._registry)
+    def run(
+        self,
+        gaps: list[GapInput],
+        context: GeneratorContext,
+        confidence_overrides: dict[str, float] | None = None,
+    ) -> ExecutionOutput:
+        return generate_top_fix(
+            gaps, context, self._gateway, self._registry, confidence_overrides
+        )

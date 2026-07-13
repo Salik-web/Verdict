@@ -42,6 +42,31 @@ class MentionRepository:
         self.session.flush()
         return len(rows)
 
+    def self_stats(
+        self,
+        account_id: uuid.UUID | str,
+        scan_id: uuid.UUID | str,
+        prompt_ids: list[uuid.UUID],
+    ) -> tuple[int, int, float | None]:
+        """Self-visibility over a fixed prompt set for one scan, as
+        (observations, mentioned_count, avg_position). Each mentions row is the
+        target brand's own (prompt, engine, run) answer, so this is exactly the
+        before/after signal verification compares. Empty prompt set -> zero."""
+        if not prompt_ids:
+            return (0, 0, None)
+        rows = self.session.scalars(
+            select(Mention).where(
+                Mention.account_id == _as_uuid(account_id),
+                Mention.scan_id == _as_uuid(scan_id),
+                Mention.prompt_id.in_(prompt_ids),
+            )
+        ).all()
+        observations = len(rows)
+        positions = [r.position for r in rows if r.mentioned and r.position is not None]
+        mentioned_count = sum(1 for r in rows if r.mentioned)
+        avg_position = round(sum(positions) / len(positions), 4) if positions else None
+        return (observations, mentioned_count, avg_position)
+
     def count_for_scan(
         self, account_id: uuid.UUID | str, scan_id: uuid.UUID | str
     ) -> int:

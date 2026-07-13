@@ -9,23 +9,37 @@ from app.pipeline.execution.config import Factors, get_planner_config
 from app.pipeline.execution.contracts import Backlog, GapInput, PlanItem
 
 
-def _score(factors: Factors, weights: Factors) -> float:
+def _score(factors: Factors, weights: Factors, confidence: float) -> float:
     return round(
         (factors.impact**weights.impact)
         * (factors.control**weights.control)
-        * (factors.confidence**weights.confidence),
+        * (confidence**weights.confidence),
         4,
     )
 
 
-def plan(gaps: list[GapInput]) -> Backlog:
+def plan(
+    gaps: list[GapInput],
+    confidence_overrides: dict[str, float] | None = None,
+) -> Backlog:
+    """Rank + dedup gaps into a backlog. `confidence_overrides` (gap_type ->
+    learned confidence, from the Verification feedback loop) replaces the
+    configured confidence prior where present, so the plan adapts to what past
+    fixes actually moved."""
     cfg = get_planner_config()
+    overrides = confidence_overrides or {}
+
+    def confidence_for(gap_type: str) -> float:
+        if gap_type in overrides:
+            return overrides[gap_type]
+        return cfg.factors_for(gap_type).confidence
 
     # Group by fix_type — one fix (e.g. a comparison page) resolves many gaps.
     groups: dict[str, list[tuple[GapInput, float]]] = {}
     for gap in gaps:
         factors = cfg.factors_for(gap.gap_type)
-        groups.setdefault(gap.fix_type, []).append((gap, _score(factors, cfg.weights)))
+        score = _score(factors, cfg.weights, confidence_for(gap.gap_type))
+        groups.setdefault(gap.fix_type, []).append((gap, score))
 
     items: list[PlanItem] = []
     for fix_type, scored in groups.items():
@@ -47,7 +61,7 @@ def plan(gaps: list[GapInput]) -> Backlog:
                 factors={
                     "impact": f.impact,
                     "control": f.control,
-                    "confidence": f.confidence,
+                    "confidence": confidence_for(best_gap.gap_type),
                 },
             )
         )

@@ -7,6 +7,7 @@ from app.db.repositories.mention import MentionRepository
 from app.db.repositories.prompt import PromptRepository
 from app.db.repositories.scan import ScanRepository
 from app.db.repositories.share_of_voice import ShareOfVoiceRepository
+from app.db.repositories.verification import VerificationRepository
 from app.db.repositories.verified_fact import VerifiedFactRepository
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "PromptRepository",
     "ScanRepository",
     "ShareOfVoiceRepository",
+    "VerificationRepository",
     "VerifiedFactRepository",
 ]

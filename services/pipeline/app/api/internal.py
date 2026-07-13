@@ -16,7 +16,7 @@ from app import __version__
 from app.api.schemas import HealthResponse
 from app.core.security import require_internal_secret
 from app.db.base import SessionLocal
-from app.db.repositories import ScanRepository
+from app.db.repositories import AssetRepository, ScanRepository
 
 router = APIRouter(
     prefix="/internal",
@@ -65,3 +65,41 @@ async def run_scan(body: ScanRunRequest) -> ScanRunResponse:
 
     async_result = run_scan_task.delay(str(body.scan_id), str(body.account_id))
     return ScanRunResponse(accepted=True, scan_id=body.scan_id, task_id=async_result.id)
+
+
+class VerificationRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    asset_id: uuid.UUID
+    account_id: uuid.UUID
+
+
+class VerificationRunResponse(BaseModel):
+    accepted: bool
+    asset_id: uuid.UUID
+    task_id: str | None = None
+
+
+@router.post(
+    "/verifications/run", response_model=VerificationRunResponse, status_code=202
+)
+async def run_verification(body: VerificationRunRequest) -> VerificationRunResponse:
+    """Accept a verification trigger from the TS API and enqueue the re-scan.
+
+    Validates the asset exists for that tenant (shared-DB contract check), then
+    dispatches a Celery job that re-runs the asset's target prompts and records an
+    honest before/after verdict.
+    """
+    with SessionLocal() as session:
+        asset = AssetRepository(session).get(body.account_id, body.asset_id)
+    if asset is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="asset not found for this account",
+        )
+
+    from app.pipeline.tasks import run_verification_task
+
+    async_result = run_verification_task.delay(str(body.asset_id), str(body.account_id))
+    return VerificationRunResponse(
+        accepted=True, asset_id=body.asset_id, task_id=async_result.id
+    )

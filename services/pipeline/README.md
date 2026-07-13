@@ -34,9 +34,10 @@ uv run black --check .
 
 | Method | Path                  | Auth                | Purpose                                                                                                                              |
 | ------ | --------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| GET    | `/health`             | none                | Liveness; returns the shared `HealthResponse` shape.                                                                                 |
-| GET    | `/internal/ping`      | `x-internal-secret` | Authenticated liveness for internal callers (the TS API).                                                                            |
-| POST   | `/internal/scans/run` | `x-internal-secret` | Scan trigger from the TS API; validates the scan row exists in the shared DB, acknowledges with 202. Orchestration lands next phase. |
+| GET    | `/health`                     | none                | Liveness; returns the shared `HealthResponse` shape.                                                          |
+| GET    | `/internal/ping`              | `x-internal-secret` | Authenticated liveness for internal callers (the TS API).                                                     |
+| POST   | `/internal/scans/run`         | `x-internal-secret` | Scan trigger from the TS API; validates the scan row exists in the shared DB, enqueues the Monitor stage (202). |
+| POST   | `/internal/verifications/run` | `x-internal-secret` | Verification trigger; validates the asset exists, enqueues a re-scan of its target prompts (202).             |
 
 ## Database
 
@@ -207,6 +208,63 @@ tests/test_execution_stage.py` — a `no_owned_comparison_page` gap yields a val
 comparison page from verified facts only; injected fake pricing is rejected; the
 asset is tagged to its queries. `verified_facts` for the demo account are in the
 seed.
+
+## Verification stage (prove what moved)
+
+[`app/pipeline/verification/`](app/pipeline/verification/) — closes the loop:
+after a shipped asset has had time to land, re-run its **exact** target prompts
+and report an honest before/after verdict. It **reuses the Monitor stage
+wholesale** — the same typed `Mention` / SoV models — scoped to the asset's
+`target_prompt_ids`, so there's no second measurement path.
+
+- **Symmetric metrics** — before and after self-visibility are computed the same
+  way from the `mentions` table (each row is the brand's own answer for one
+  `(prompt, engine, run)`), restricted to those prompts. "Before" comes from the
+  scan that surfaced the gap; "after" from a fresh scan over the same prompts.
+- **Honest verdict** ([compare.py](app/pipeline/verification/compare.py), pure) —
+  `improved` / `no_change` / `regressed` / `inconclusive`, with a **confidence**
+  that scales with sample size and effect magnitude. A small sample is
+  `inconclusive`; a flat result on a big sample is a confident `no_change`.
+  Thresholds live in [config/verification.yaml](config/verification.yaml).
+- **Feedback loop** ([feedback.py](app/pipeline/verification/feedback.py)) — past
+  verdicts per `gap_type` blend into the planner's **confidence** weighting, so
+  fixes that reliably move visibility get ranked up and ones that don't get ranked
+  down. The Execute runner loads these overrides automatically.
+
+**Trigger:** `POST /internal/verifications/run` (or the `verification.run_asset`
+Celery task) → the runner writes a `verifications` row (before/after metrics,
+delta, confidence, verdict) linking the before and after scans.
+
+## Scheduling + quotas (run on a cadence, cap the cost)
+
+[`app/pipeline/schedule/`](app/pipeline/schedule/) — periodic scans per account
+with **jittered** start times so a cohort never fires at once.
+
+- **Jitter** ([jitter.py](app/pipeline/schedule/jitter.py), pure) — each account's
+  offset is a deterministic hash of its id within the window, so accounts spread
+  across [config/schedule.yaml](config/schedule.yaml)'s `jitter_minutes` with no
+  random state to persist and no thundering herd.
+- **Beat** — Celery beat ticks every `tick_minutes` and runs
+  `schedule.enqueue_due_scans`, which creates `scheduled` scan rows for due
+  accounts and enqueues each Monitor job. The TS side can drive the same selection
+  over internal HTTP instead — the cadence policy lives in config either way.
+- **Quota double-check** ([quota.py](app/pipeline/quota.py)) — before any
+  expensive job (a scheduled scan or a verification re-scan) the pipeline
+  re-checks the account's plan cap ([config/quotas.yaml](config/quotas.yaml),
+  scans per calendar month). The TS quota middleware is the real gate; this is
+  defense-in-depth against runaway cost.
+
+Run the beat alongside a worker (needs Redis from `infra/`):
+
+```bash
+uv run celery -A app.celery_app beat --loglevel=info
+```
+
+Checkpoint (no keys): `uv run pytest tests/test_verification_compare.py
+tests/test_schedule_jitter.py tests/test_planner_feedback.py tests/test_quota.py`
+(pure logic) and `tests/test_verification_run.py tests/test_schedule_enqueue.py`
+(against the seeded DB) — an invisible-before asset verifies as `improved` with
+confidence, and an overdue account gets a jittered `scheduled` scan enqueued.
 
 ## Config
 

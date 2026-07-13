@@ -27,7 +27,10 @@ from app.pipeline.monitor.stage import run_monitor
 
 
 def load_scan_context(
-    session, account_id: uuid.UUID, scan_id: uuid.UUID
+    session,
+    account_id: uuid.UUID,
+    scan_id: uuid.UUID,
+    prompt_ids: list[uuid.UUID] | None = None,
 ) -> ScanContext:
     scan = ScanRepository(session).get(account_id, scan_id)
     if scan is None:
@@ -38,6 +41,10 @@ def load_scan_context(
         raise ValueError(f"account {account_id} not found")
 
     prompts = PromptRepository(session).list_by_account(account_id, active_only=True)
+    if prompt_ids is not None:
+        # Verification re-runs a shipped asset's EXACT target prompts.
+        wanted = set(prompt_ids)
+        prompts = [p for p in prompts if p.id in wanted]
     if not prompts:
         raise ValueError("account has no active prompts to scan")
 
@@ -65,12 +72,13 @@ def run_scan(
     account_id: uuid.UUID | str,
     scan_id: uuid.UUID | str,
     gateway: Gateway | None = None,
+    prompt_ids: list[uuid.UUID] | None = None,
 ) -> dict[str, Any]:
     account_id = _as_uuid(account_id)
     scan_id = _as_uuid(scan_id)
 
     with SessionLocal() as session:
-        context = load_scan_context(session, account_id, scan_id)
+        context = load_scan_context(session, account_id, scan_id, prompt_ids)
         ScanRepository(session).mark_running(account_id, scan_id, context.engines)
         session.commit()
 

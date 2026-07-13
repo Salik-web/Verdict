@@ -1,0 +1,32 @@
+# Verification: after a shipped asset has had time to land, re-run its exact
+# target prompts and compare self-visibility before vs after. The verdict is
+# honest — "no_change" and "inconclusive" are first-class outcomes, not failures.
+
+# A change in self mention-rate smaller than this counts as "no change".
+min_delta: 0.05
+
+# Below this many (prompt, engine, run) observations on EITHER side we refuse to
+# call it and return "inconclusive" — too small a sample to trust.
+min_observations: 6
+
+# A delta at/above this magnitude is a "strong" effect (caps confidence's effect
+# term at 1.0).
+strong_delta: 0.25
+
+# Observations at/above this give full sample-confidence.
+full_confidence_observations: 24
+
+# Default delay before an asset is eligible for verification (the TS scheduler /
+# beat honours this; kept here so the whole policy lives in config).
+default_delay_hours: 168 # 7 days
+
+# Feeding results back into the planner's confidence weighting.
+feedback:
+  # Need at least this many conclusive verifications for a gap_type before its
+  # configured confidence is overridden at all.
+  min_samples: 2
+  # Samples at/above this fully displace the configured confidence with the
+  # learned value; between min_samples and here the two are blended.
+  full_weight_samples: 6
+  # Never drive a gap_type's confidence below this from history alone.
+  confidence_floor: 0.05

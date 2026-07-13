@@ -13,6 +13,7 @@ from __future__ import annotations
 from celery import Celery
 
 from app.core.config import get_settings
+from app.pipeline.schedule.config import get_schedule_config
 
 _settings = get_settings()
 
@@ -30,6 +31,15 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
 )
+
+# Config-driven beat: tick every `tick_minutes` and enqueue whatever is due. Run
+# the beat alongside a worker:  uv run celery -A app.celery_app beat
+celery_app.conf.beat_schedule = {
+    "enqueue-due-scans": {
+        "task": "schedule.enqueue_due_scans",
+        "schedule": float(get_schedule_config().tick_minutes * 60),
+    },
+}
 
 
 @celery_app.task(name="health.ping")

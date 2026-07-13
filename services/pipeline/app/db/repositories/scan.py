@@ -24,6 +24,46 @@ class ScanRepository:
             )
         ).first()
 
+    def create(
+        self,
+        account_id: uuid.UUID | str,
+        *,
+        triggered_by: str | None = None,
+        status: str = "pending",
+    ) -> Scan:
+        """Create a scan row (used by the scheduler and the verification re-scan;
+        the TS API creates its own via Drizzle)."""
+        scan = Scan(
+            account_id=_as_uuid(account_id),
+            status=status,
+            engine_set=[],
+            triggered_by=triggered_by,
+        )
+        self.session.add(scan)
+        self.session.flush()
+        return scan
+
+    def last_created_at(self, account_id: uuid.UUID | str) -> datetime | None:
+        """created_at of the account's most recent scan (any status) — the anchor
+        the scheduler measures cadence from."""
+        return self.session.scalars(
+            select(Scan.created_at)
+            .where(Scan.account_id == _as_uuid(account_id))
+            .order_by(Scan.created_at.desc())
+            .limit(1)
+        ).first()
+
+    def count_since(self, account_id: uuid.UUID | str, since: datetime) -> int:
+        """Scans created at/after `since` — the quota check's usage counter."""
+        return len(
+            self.session.scalars(
+                select(Scan.id).where(
+                    Scan.account_id == _as_uuid(account_id),
+                    Scan.created_at >= since,
+                )
+            ).all()
+        )
+
     # ── lifecycle ────────────────────────────────────────────────────────
     def mark_running(
         self,

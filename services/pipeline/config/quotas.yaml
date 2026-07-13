@@ -1,0 +1,11 @@
+# Plan quotas the pipeline double-checks before any expensive job (a scan or a
+# verification re-scan). The TS quota middleware is the real gate; this is
+# defense-in-depth against runaway cost if a job is triggered another way.
+# Counted as scans CREATED within the current calendar month (UTC).
+
+default_monthly_scans: 4
+plans:
+  free: 4
+  starter: 20
+  growth: 100
+  enterprise: 1000

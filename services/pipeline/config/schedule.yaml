@@ -1,0 +1,14 @@
+# Scheduler: periodic scans per account with JITTERED start times so a whole
+# cohort never fires at once (no thundering herd). Config-driven; the Python beat
+# ticks every `tick_minutes` and enqueues whatever is due. The TS side can drive
+# the same selection over internal HTTP instead — the policy lives here either way.
+
+# Days between automatic scans for an account.
+cadence_days: 7
+
+# Each account gets a stable, deterministic offset in [0, jitter_minutes) added to
+# its due time — spreads a cohort across the window instead of firing at once.
+jitter_minutes: 720 # 12h spread
+
+# How often the beat wakes to enqueue due scans.
+tick_minutes: 15

@@ -29,6 +29,7 @@ from app.pipeline.execution.contracts import (
     VerifiedFactRef,
 )
 from app.pipeline.execution.stage import generate_top_fix
+from app.pipeline.verification.feedback import confidence_overrides_from_history
 
 _COMPARISON_CATEGORIES = {"comparison", "alternatives", "competitive"}
 
@@ -107,10 +108,13 @@ def run_execution(
     with SessionLocal() as session:
         context = load_generator_context(session, account_id)
         gaps = load_open_gaps(session, account_id, scan_id)
+        # Close the loop: past verification outcomes reweight the planner's
+        # confidence for gap_types we've already shipped fixes for.
+        overrides = confidence_overrides_from_history(session, account_id)
     if not gaps:
         raise ValueError("no open gaps to execute")
 
-    output = generate_top_fix(gaps, context, gateway)
+    output = generate_top_fix(gaps, context, gateway, confidence_overrides=overrides)
     asset = output.asset
 
     asset_id = uuid.uuid4()
