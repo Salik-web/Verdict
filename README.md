@@ -96,6 +96,10 @@ Each phase is built, tested on one real example, and reviewed before the next.
 - **8 — Verify:** verification stage (before/after proof reusing Monitor, honest
   verdict + confidence feeding back into the planner), jittered scheduling, and a
   plan-quota double-check.
+- **9 — Hardening:** security sweep + [SECURITY.md](SECURITY.md) checklist,
+  [SCALING.md](SCALING.md), structured logging + optional Sentry (scrubbed),
+  `/internal/costs`, CI (gitleaks + `pnpm audit` + `pip-audit`) + Dependabot, and
+  a full-loop end-to-end test with all guards active.
 
 Checkpoints run in mock mode (no keys): `pnpm --filter @geo/api test` (TS) and
 `cd services/pipeline && uv run pytest` (pipeline).

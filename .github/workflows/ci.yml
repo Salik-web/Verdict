@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least-privilege default; jobs opt into more only if they need it.
+permissions:
+  contents: read
+
+env:
+  # Deterministic, non-secret values for the ephemeral CI database.
+  DATABASE_URL: postgresql://geo:geo@localhost:5432/geo
+  DATABASE_URL_PSYCOPG: postgresql+psycopg://geo:geo@localhost:5432/geo
+  REDIS_URL: redis://localhost:6379/0
+  INTERNAL_SHARED_SECRET: ci-internal-secret-000
+  COOKIE_SECRET: ci-cookie-secret-0000000000
+  MASTER_ENCRYPTION_KEY: "00000000000000000000000000000000000000000000000000000000000000ff"
+
+jobs:
+  # ── TypeScript API: lint, typecheck, checkpoint tests ──────────────────
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: geo
+          POSTGRES_PASSWORD: geo
+          POSTGRES_DB: geo
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U geo -d geo"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @geo/api db:migrate
+      - run: pnpm --filter @geo/api db:seed
+      - run: pnpm --filter @geo/api lint
+      # The API checkpoint test triggers the pipeline over internal HTTP, so the
+      # Python service must be reachable. Boot it in the background first.
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: start pipeline service
+        working-directory: services/pipeline
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL_PSYCOPG }}
+        run: |
+          uv sync --frozen
+          uv run uvicorn app.main:app --port 8000 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8000/health && break || sleep 1;
+          done
+      - run: pnpm --filter @geo/api test
+
+  # ── Python pipeline: lint, format check, full test suite ───────────────
+  pipeline:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: geo
+          POSTGRES_PASSWORD: geo
+          POSTGRES_DB: geo
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U geo -d geo"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      # Apply schema + seed via the TS migrator (the SQL in /db is the contract).
+      - run: pnpm --filter @geo/api db:migrate
+      - run: pnpm --filter @geo/api db:seed
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - working-directory: services/pipeline
+        run: uv sync --frozen
+      - working-directory: services/pipeline
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL_PSYCOPG }}
+        run: |
+          uv run ruff check .
+          uv run black --check .
+          uv run pytest -q
+
+  # ── Security: secret scan + dependency audit (both ecosystems) ─────────
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks scans full history
+      - name: gitleaks (secret scan)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_CONFIG: .gitleaks.toml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      # Fail only on high/critical advisories — noise below that shouldn't block.
+      - name: pnpm audit
+        run: pnpm audit --audit-level high
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: pip-audit (pipeline deps)
+        working-directory: services/pipeline
+        run: |
+          uv sync --frozen
+          uv run --with pip-audit pip-audit

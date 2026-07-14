@@ -13,7 +13,11 @@ from __future__ import annotations
 from celery import Celery
 
 from app.core.config import get_settings
+from app.core.observability import configure_logging, init_sentry
 from app.pipeline.schedule.config import get_schedule_config
+
+configure_logging()
+init_sentry()  # no-op unless SENTRY_DSN is set
 
 _settings = get_settings()
 

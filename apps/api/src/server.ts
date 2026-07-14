@@ -12,6 +12,7 @@ import type { AppConfig } from "./config.js";
 import type { AppContext } from "./context.js";
 import { Envelope } from "./crypto/envelope.js";
 import { createDb } from "./db/client.js";
+import { captureException } from "./observability.js";
 import { PipelineClient } from "./internal/pipeline-client.js";
 import { registerAccountRoutes } from "./routes/accounts.js";
 import { registerAuthRoutes } from "./routes/auth.js";
@@ -103,6 +104,7 @@ export async function buildServer(config: AppConfig): Promise<{
     if (err instanceof ValidationFailed) {
       return sendValidationError(reply, err);
     }
+    captureException(err); // no-op unless Sentry is active
     app.log.error({ err }, "unhandled error");
     if (!reply.sent) {
       const maybe = err as { statusCode?: unknown; message?: unknown };

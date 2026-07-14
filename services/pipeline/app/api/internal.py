@@ -8,6 +8,7 @@ contract) and enqueues the Monitor stage as a Celery job.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict
@@ -16,7 +17,7 @@ from app import __version__
 from app.api.schemas import HealthResponse
 from app.core.security import require_internal_secret
 from app.db.base import SessionLocal
-from app.db.repositories import AssetRepository, ScanRepository
+from app.db.repositories import AssetRepository, LlmCostRepository, ScanRepository
 
 router = APIRouter(
     prefix="/internal",
@@ -29,6 +30,16 @@ router = APIRouter(
 async def ping() -> HealthResponse:
     """Authenticated liveness check for internal callers."""
     return HealthResponse(service="pipeline", version=__version__)
+
+
+@router.get("/costs")
+async def costs(account_id: uuid.UUID, days: int = 30) -> dict:
+    """Surface llm_cost_log as a tenant-scoped, pre-aggregated cost roll-up for
+    the last `days` (mock vs real split + per-model breakdown). Internal/ops view;
+    the shared-secret dependency on the router guards it."""
+    since = datetime.now(UTC) - timedelta(days=max(1, days))
+    with SessionLocal() as session:
+        return LlmCostRepository(session).summary(account_id, since=since)
 
 
 class ScanRunRequest(BaseModel):

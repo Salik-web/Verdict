@@ -37,6 +37,10 @@ const envSchema = z.object({
   // Session lifetimes (seconds).
   SESSION_TTL_S: z.coerce.number().int().positive().default(900), // 15 min
   REFRESH_TTL_S: z.coerce.number().int().positive().default(1209600), // 14 days
+
+  // Error tracking. Optional — blank leaves Sentry off (dev/test boot with no
+  // secret); set it in prod to turn on scrubbed error reporting.
+  SENTRY_DSN: z.string().url().optional(),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

@@ -38,6 +38,7 @@ uv run black --check .
 | GET    | `/internal/ping`              | `x-internal-secret` | Authenticated liveness for internal callers (the TS API).                                                     |
 | POST   | `/internal/scans/run`         | `x-internal-secret` | Scan trigger from the TS API; validates the scan row exists in the shared DB, enqueues the Monitor stage (202). |
 | POST   | `/internal/verifications/run` | `x-internal-secret` | Verification trigger; validates the asset exists, enqueues a re-scan of its target prompts (202).             |
+| GET    | `/internal/costs`             | `x-internal-secret` | Tenant-scoped `llm_cost_log` roll-up (`?account_id=&days=`): totals, mock-vs-real split, per-model breakdown.   |
 
 ## Database
 
@@ -265,6 +266,20 @@ tests/test_schedule_jitter.py tests/test_planner_feedback.py tests/test_quota.py
 (pure logic) and `tests/test_verification_run.py tests/test_schedule_enqueue.py`
 (against the seeded DB) — an invisible-before asset verifies as `improved` with
 confidence, and an overdue account gets a jittered `scheduled` scan enqueued.
+
+## Observability
+
+[`app/core/observability.py`](app/core/observability.py) configures stdlib
+logging at the settings level (we log ids/counts/status — never the Settings
+object, scraped content, model output, or credentials) and wires **Sentry only
+when `SENTRY_DSN` is set** (PII off, a scrubber redacts known-sensitive keys), so
+mock/dev/test boot with no secret. Both the FastAPI app and the Celery worker call
+it on boot. Per-call spend is in `llm_cost_log`, surfaced at `GET /internal/costs`.
+
+Backend hardening (both services) is catalogued in the repo-root
+[SECURITY.md](../../SECURITY.md) (covered vs deployment-owned vs deferred) and
+[SCALING.md](../../SCALING.md). The whole loop is proven end-to-end in mock mode
+with guards active by `tests/test_full_loop.py`.
 
 ## Config
 

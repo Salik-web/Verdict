@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # Internal service-to-service auth. Must match apps/api's value.
     internal_shared_secret: str = Field(min_length=8)
 
+    # Error tracking. BLANK by default -> Sentry stays off (mock/dev/test boot
+    # with no secret). Set it in prod to turn on scrubbed error reporting.
+    sentry_dsn: str | None = None
+
     # Gateway mode selects how model calls are served. Default `mock` runs the
     # whole pipeline with NO API keys. dev = free providers, prod = paid models.
     # Switching modes is this one env var — no code change.

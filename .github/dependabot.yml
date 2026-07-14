@@ -1,0 +1,27 @@
+version: 2
+updates:
+  # TypeScript workspace (pnpm) — root manifest covers the monorepo.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+
+  # Python pipeline (uv/pip).
+  - package-ecosystem: pip
+    directory: "/services/pipeline"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      pip-minor-patch:
+        update-types: [minor, patch]
+
+  # GitHub Actions themselves.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly

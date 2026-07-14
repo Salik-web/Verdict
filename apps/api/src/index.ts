@@ -1,4 +1,5 @@
 import { loadConfig } from "./config.js";
+import { initSentry } from "./observability.js";
 import { buildServer } from "./server.js";
 
 // Load .env in local dev. No-op (and harmless) when the file is absent, e.g.
@@ -12,6 +13,7 @@ try {
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  initSentry(config); // no-op unless SENTRY_DSN is set
   const { app } = await buildServer(config);
 
   try {

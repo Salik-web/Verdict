@@ -11,6 +11,10 @@ from fastapi import FastAPI
 
 from app import __version__
 from app.api import health, internal
+from app.core.observability import configure_logging, init_sentry
+
+configure_logging()
+init_sentry()  # no-op unless SENTRY_DSN is set
 
 app = FastAPI(title="GEO Pipeline", version=__version__)
 
