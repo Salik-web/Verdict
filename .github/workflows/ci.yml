@@ -51,7 +51,7 @@ jobs:
       - run: pnpm --filter @geo/api lint
       # The API checkpoint test triggers the pipeline over internal HTTP, so the
       # Python service must be reachable. Boot it in the background first.
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
       - name: start pipeline service
@@ -96,7 +96,7 @@ jobs:
       # Apply schema + seed via the TS migrator (the SQL in /db is the contract).
       - run: pnpm --filter @geo/api db:migrate
       - run: pnpm --filter @geo/api db:seed
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
       - working-directory: services/pipeline
@@ -128,7 +128,7 @@ jobs:
       # Fail only on high/critical advisories — noise below that shouldn't block.
       - name: pnpm audit
         run: pnpm audit --audit-level high
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
       - name: pip-audit (pipeline deps)
