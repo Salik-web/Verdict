@@ -14,7 +14,9 @@ import pytest
 from app.gateway.cost import NullCostSink
 from app.gateway.gateway import build_gateway
 from app.gateway.models_config import get_models_config
+from app.pipeline.diagnosis.config import get_diagnosis_config
 from app.pipeline.diagnosis.contracts import DiagnosisContext
+from app.pipeline.diagnosis.fetcher import HttpxFetcher
 from app.pipeline.diagnosis.stage import diagnose
 
 pytestmark = pytest.mark.skipif(
@@ -32,7 +34,10 @@ def test_live_diagnosis_example_com():
     gateway = build_gateway(
         mode="mock", cost_sink=NullCostSink(), config=get_models_config()
     )
-    out = diagnose(context, gateway=gateway)  # real HttpxFetcher
+    # Explicit real-network fetcher: the config default is fixtures in mock mode,
+    # and this test exists precisely to exercise real HTTP.
+    fetcher = HttpxFetcher(get_diagnosis_config().scraper)
+    out = diagnose(context, fetcher=fetcher, gateway=gateway)
 
     assert out.findings
     assert out.bot_audit is not None

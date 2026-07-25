@@ -1,0 +1,70 @@
+{
+  "_readme": [
+    "Config for scripts/create-real-account.mjs — a REAL test account for a dev-mode",
+    "(GATEWAY_MODE=dev) scan against live Gemini.",
+    "",
+    "Every FILL_ME must be replaced. The script refuses to run otherwise, on purpose:",
+    "the point of verified facts is that they are TRUE. A fact you didn't check is",
+    "worse than no fact — the generator will state it on a page as if it were.",
+    "",
+    "domain MUST be real and resolvable: in dev mode Diagnosis actually fetches it",
+    "(mock mode uses a fixture site instead). Prefer a content-rich marketing site;",
+    "a JS-only SPA renders empty to the plain HTTP fetcher and will look 'broken'.",
+    "",
+    "COST: a scan costs (prompts x repeats) grounded Gemini calls for measurement,",
+    "the same number of cheap parse calls, plus 1 generation. repeats defaults to 5",
+    "(config/monitor.yaml). So 3 prompts = ~31 calls. Keep prompts few for a first run."
+  ],
+
+  "email": "FILL_ME@example.com",
+  "password": "FILL_ME-at-least-10-chars",
+  "accountName": "FILL_ME Inc",
+
+  "domain": "FILL_ME.com",
+  "brandName": "FILL_ME",
+  "brandAliases": [],
+
+  "competitors": [
+    { "name": "FILL_ME Competitor", "domain": "FILL_ME-competitor.com" }
+  ],
+
+  "prompts": [
+    { "text": "FILL_ME: a question a real buyer would type, e.g. 'best X for Y'", "category": "recommendation" },
+    { "text": "FILL_ME: an alternatives question, e.g. 'top alternatives to <competitor>'", "category": "alternatives" }
+  ],
+
+  "verifiedFacts": [
+    {
+      "factType": "pricing",
+      "key": "starting_price",
+      "value": { "display": "FILL_ME: your real starting price", "about": "self" },
+      "source": "FILL_ME: url you checked this on"
+    },
+    {
+      "factType": "feature",
+      "key": "headline_feature",
+      "value": { "display": "FILL_ME: a real differentiating feature", "about": "self" },
+      "source": "FILL_ME: url"
+    },
+    {
+      "factType": "pricing",
+      "key": "competitor_starting_price",
+      "value": {
+        "display": "FILL_ME: the competitor's REAL published starting price",
+        "about": "competitor",
+        "competitor": "FILL_ME Competitor"
+      },
+      "source": "FILL_ME: competitor pricing page url you actually read"
+    },
+    {
+      "factType": "feature",
+      "key": "competitor_headline_feature",
+      "value": {
+        "display": "FILL_ME: a real competitor feature",
+        "about": "competitor",
+        "competitor": "FILL_ME Competitor"
+      },
+      "source": "FILL_ME: url"
+    }
+  ]
+}

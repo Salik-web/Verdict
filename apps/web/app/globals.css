@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Plain, boring defaults. This is an internal-admin-looking test harness. */
+input,
+textarea,
+select {
+  border: 1px solid #9ca3af;
+  padding: 4px 6px;
+}
+button {
+  cursor: pointer;
+}
+table {
+  border-collapse: collapse;
+}
+th,
+td {
+  border: 1px solid #d1d5db;
+  padding: 4px 8px;
+  text-align: left;
+  font-size: 13px;
+}

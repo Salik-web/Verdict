@@ -79,6 +79,41 @@ class ScanRepository:
             self.session.flush()
         return scan
 
+    def set_engine_set(
+        self,
+        account_id: uuid.UUID | str,
+        scan_id: uuid.UUID | str,
+        engines: list[str],
+    ) -> Scan | None:
+        """Record the engines that ACTUALLY ran (derived provider/model labels),
+        overwriting the config slot names set at mark_running — so the scan row
+        never claims an engine that didn't answer."""
+        scan = self.get(account_id, scan_id)
+        if scan is not None:
+            scan.engine_set = engines
+            self.session.flush()
+        return scan
+
+    def record_stage(
+        self,
+        account_id: uuid.UUID | str,
+        scan_id: uuid.UUID | str,
+        stage: str,
+        result: dict[str, Any],
+    ) -> Scan | None:
+        """Merge one stage's result into scan.stats["stages"][stage] WITHOUT
+        touching status — so a chained scan reports real per-stage progress while
+        it's still running. Reassigns stats (JSONB change detection needs it)."""
+        scan = self.get(account_id, scan_id)
+        if scan is not None:
+            stats = dict(scan.stats or {})
+            stages = dict(stats.get("stages") or {})
+            stages[stage] = result
+            stats["stages"] = stages
+            scan.stats = stats
+            self.session.flush()
+        return scan
+
     def mark_completed(
         self,
         account_id: uuid.UUID | str,

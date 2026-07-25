@@ -70,13 +70,67 @@ def test_scenarios_are_selectable(mock_gateway):
     assert wins.text != invisible.text
 
 
-def test_cache_returns_hit_without_new_cost(mock_gateway):
+def test_cache_hit_is_logged_flagged_cached_with_zero_cost(mock_gateway):
+    """A cache hit spends nothing but is STILL a logical call — it must leave a
+    row flagged cached (cost 0) so the ledger is complete for the pricing model."""
     gw, sink = mock_gateway
     first = gw.call("generation", MESSAGES, account_id=DEMO_ACCOUNT_ID)
     second = gw.call("generation", MESSAGES, account_id=DEMO_ACCOUNT_ID)
     assert first.cached is False
     assert second.cached is True
-    assert len(sink.entries) == 1  # cache hit logged no extra cost row
+
+    assert len(sink.entries) == 2  # both calls logged
+    assert sink.entries[0].cached is False
+    hit = sink.entries[1]
+    assert hit.cached is True
+    assert hit.status == "ok"
+    assert hit.cost_usd == 0
+
+
+def test_measurement_is_never_cache_served(mock_gateway):
+    """Repeats must be fresh samples: measurement is excluded from the cache, so
+    two identical measurement calls both hit the provider and both get logged
+    (this is the bug that made runs 2-5 identical and unlogged)."""
+    gw, sink = mock_gateway
+    a = gw.call(
+        "measurement", MESSAGES, account_id=DEMO_ACCOUNT_ID, scenario="competitor_wins"
+    )
+    b = gw.call(
+        "measurement", MESSAGES, account_id=DEMO_ACCOUNT_ID, scenario="competitor_wins"
+    )
+    assert a.cached is False and b.cached is False
+    assert len(sink.entries) == 2
+    assert all(e.cached is False for e in sink.entries)
+
+
+def test_failed_call_is_logged_with_error_status():
+    """A call that raises (after any fallback) still leaves a row — zero usage,
+    status 'error' — so a missing row can only ever mean a logging bug."""
+    from app.gateway.gateway import Gateway
+    from app.gateway.models_config import ModelsConfig, ProviderConfig, TaskTarget
+
+    class _BoomProvider:
+        def generate(self, target, msgs, params):
+            raise RuntimeError("kaboom")
+
+    cfg = ModelsConfig(
+        tasks={"processing": {"mock": TaskTarget(provider="boom", model="x")}},
+        providers={"boom": ProviderConfig(type="boom")},
+    )
+    sink = NullCostSink()
+    gw = Gateway(
+        mode="mock",
+        config=cfg,
+        providers={"boom": _BoomProvider()},
+        cost_sink=sink,
+        cache=None,
+    )
+    with pytest.raises(RuntimeError):
+        gw.call("processing", MESSAGES, account_id=DEMO_ACCOUNT_ID)
+
+    assert len(sink.entries) == 1
+    assert sink.entries[0].status == "error"
+    assert sink.entries[0].cost_usd == 0
 
 
 def test_model_swap_is_config_only(mock_gateway):

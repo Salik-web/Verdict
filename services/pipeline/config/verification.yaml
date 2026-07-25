@@ -16,9 +16,15 @@ strong_delta: 0.25
 # Observations at/above this give full sample-confidence.
 full_confidence_observations: 24
 
-# Default delay before an asset is eligible for verification (the TS scheduler /
-# beat honours this; kept here so the whole policy lives in config).
-default_delay_hours: 168 # 7 days
+# When the verification re-measure runs. Verification is deliberately NOT chained
+# onto a scan: a shipped fix needs time to be crawled/indexed before re-measuring
+# means anything. The Celery beat picks up assets once they come due.
+schedule:
+  # How long after an asset ships before it's eligible for verification.
+  # SET TO 0 TO VERIFY IMMEDIATELY WHEN TESTING (fractional hours allowed).
+  delay_hours: 168 # 7 days
+  # How often the beat looks for assets that have come due.
+  check_every_minutes: 15
 
 # Feeding results back into the planner's confidence weighting.
 feedback:

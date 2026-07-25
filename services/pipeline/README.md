@@ -36,7 +36,9 @@ uv run black --check .
 | ------ | --------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | GET    | `/health`                     | none                | Liveness; returns the shared `HealthResponse` shape.                                                          |
 | GET    | `/internal/ping`              | `x-internal-secret` | Authenticated liveness for internal callers (the TS API).                                                     |
-| POST   | `/internal/scans/run`         | `x-internal-secret` | Scan trigger from the TS API; validates the scan row exists in the shared DB, enqueues the Monitor stage (202). |
+| POST   | `/internal/scans/run`         | `x-internal-secret` | Runs the FULL pipeline chain for a scan (monitor → diagnose → plan+execute), 202. |
+| POST   | `/internal/diagnoses/run`     | `x-internal-secret` | Re-runs ONLY the Diagnosis stage for an existing scan (202).                      |
+| POST   | `/internal/executions/run`    | `x-internal-secret` | Re-runs ONLY the Plan+Execute stage for an existing scan (202).                   |
 | POST   | `/internal/verifications/run` | `x-internal-secret` | Verification trigger; validates the asset exists, enqueues a re-scan of its target prompts (202).             |
 | GET    | `/internal/costs`             | `x-internal-secret` | Tenant-scoped `llm_cost_log` roll-up (`?account_id=&days=`): totals, mock-vs-real split, per-model breakdown.   |
 
@@ -87,8 +89,55 @@ edit there, never a code change.
 
 Mock fixtures are **scenario-able** (`competitor_wins`, `customer_invisible`, …)
 so they double as the test suite. Real (dev/prod) calls go through one
-OpenAI-compatible HTTP adapter (covers Groq/OpenRouter/DeepSeek/Perplexity/Kimi);
-the Gemini adapter lands with real keys.
+OpenAI-compatible HTTP adapter (covers Groq/OpenRouter/DeepSeek/Perplexity/Kimi),
+plus a dedicated **Gemini** adapter (below) — Gemini needs Google Search
+grounding, which the OpenAI shape can't express.
+
+### Running one real scan (dev mode)
+
+`.env` (services/pipeline) — nothing else changes:
+
+```bash
+GATEWAY_MODE=dev
+GOOGLE_API_KEY=...      # aistudio.google.com/apikey — measurement (Gemini, grounded)
+GROQ_API_KEY=...        # free tier — processing (parsing)
+OPENROUTER_API_KEY=...  # free tier — generation (the comparison page)
+```
+
+Restart the FastAPI service **and the Celery worker** — both read env at boot.
+Tests are unaffected: they pin `mode="mock"` explicitly, and `mock` stays the
+default everywhere.
+
+**Measurement is grounded on purpose.** `tasks.measurement.dev` sets
+`grounding: true`, so the Gemini adapter sends `tools: [{google_search: {}}]`.
+Without it you'd measure what the model memorised in training, not what a user
+sees today — and you'd get no `cited_urls`, which Diagnosis depends on.
+
+**Budget before you scan.** A scan costs `prompts × repeats` grounded calls
+(`repeats: 5` in [monitor.yaml](config/monitor.yaml)) + the same number of parse
+calls + 1 generation. Repeats are *not* collapsed by the cache — each repeat uses
+a different scenario key, which is the point (you're sampling engine variance).
+So 3 prompts ≈ 31 calls. Keep prompts few for a first run.
+
+**`cost_usd` in dev is MODELLED, not billed.** Dev models run on free tiers (actual
+spend $0), but they're priced at real list rates so a free run still yields true
+unit economics. Grounded search is billed **per request**, not per token — Gemini
+2.5 is `$35/1,000 grounded prompts`, so `Price.grounded_request` ($0.035) is added
+on top of tokens for grounded calls only. It's ~98% of a measurement call's cost;
+pricing tokens alone reported ≈$0 for the one call that actually costs money. The
+free allowance (1,500 grounded/day) is deliberately ignored — the figure is the
+marginal paid cost. So `/internal/costs` shows what you *would* pay, not what you
+*were* charged; `mock` flags simulated calls, but there's no "was free-tier" flag.
+NOTE: Gemini **3** bills per search *query* (a call can run several), so on a
+Gemini 3 model this field would need to multiply by `len(webSearchQueries)`.
+
+**Free-tier safety** (config/models.yaml): every provider has `min_interval_s`
+spacing (the token bucket starts full, so `rpm` alone permits exactly the burst
+free tiers 429 on), retries back off in seconds and honour `Retry-After`, and a
+persistent 429 **fails the scan** with an actionable error rather than spinning.
+Celery's soft time limit (`CELERY_TASK_SOFT_TIME_LIMIT_S`, default 600s) raises
+inside the task so the stage still marks the scan `failed` — a hung provider can't
+leave a scan stuck at `running`.
 
 Cross-cutting, handled in the gateway (not the providers): retries w/ backoff,
 per-provider token-bucket rate limiting, in-memory response cache (swappable for
@@ -192,13 +241,18 @@ generate + validate the single highest-value fix.
   `generate(item, context) -> AssetDraft`. New fix types register in
   [registry.py](app/pipeline/execution/registry.py) with no stage change.
 - **ComparisonPageGenerator** — gap + competitor + `verified_facts` → structured
-  HTML + FAQ JSON-LD via the gateway `generation` task. **Every customer-specific
-  claim must come from `verified_facts`.** Plus small **robots.txt fixer** and
-  **llms.txt generator** sharing the same interface.
-- **Validation** ([validate.py](app/pipeline/execution/validate.py)) — rejects
-  any `self` claim not backed by an active verified fact (hallucinated pricing →
-  `rejected`), and sanitizes HTML with **nh3** (scripts/dangerous attrs stripped,
-  XSS defense) before an asset is deliverable.
+  HTML + FAQ JSON-LD via the gateway `generation` task. **Every claim about a real
+  party must come from `verified_facts`** — the customer's *and* the competitor's.
+  Facts carry `about: self|competitor` in their jsonb `value`, and the prompt gets
+  the two sets separately; with no competitor facts it's told not to state any.
+  The visible FAQ is rendered from the FAQ JSON-LD, so page and markup always
+  match. Plus small **robots.txt fixer** and **llms.txt generator** sharing the
+  same interface.
+- **Validation** ([validate.py](app/pipeline/execution/validate.py)) — rejects any
+  `self` **or `competitor`** claim not backed by an active verified fact of the
+  same subject (hallucinated pricing, ours or theirs → `rejected`; a self fact
+  can't back a competitor claim), and sanitizes HTML with **nh3**
+  (scripts/dangerous attrs stripped, XSS defense) before an asset is deliverable.
 - **Delivery** — asset content is written to a downloadable file
   (`content_ref`) under `artifacts/` (gitignored); the `assets` row is tagged
   with `target_prompt_ids` for later verification. `fix_type`/claims/violations
@@ -266,6 +320,55 @@ tests/test_schedule_jitter.py tests/test_planner_feedback.py tests/test_quota.py
 (pure logic) and `tests/test_verification_run.py tests/test_schedule_enqueue.py`
 (against the seeded DB) — an invisible-before asset verifies as `improved` with
 confidence, and an overdue account gets a jittered `scheduled` scan enqueued.
+
+## Orchestration (one trigger runs the loop)
+
+[`app/pipeline/tasks.py`](app/pipeline/tasks.py) wires the stages into a Celery
+**chain** — one `POST /internal/scans/run` runs all of it:
+
+```
+monitor -> diagnosis -> plan+execute -> finalize
+```
+
+- **Whole-pipeline status.** Each stage writes its own `jobs` row
+  (`queued → running → succeeded/failed`) and merges its result into
+  `scans.stats["stages"]`, so polling a scan shows real per-stage progress. The
+  scan is only `completed` once every stage has run (monitor is chained with
+  `finalize=False`); it's `failed` — with the error — the moment a stage raises,
+  which aborts the chain rather than letting the loop stop half-done.
+- **Skips aren't failures.** No domain to scrape, or no open gaps to fix, are
+  legitimate outcomes: the stage records `{"skipped": true, "reason": ...}` and
+  the chain continues.
+- **Single-stage re-runs.** `/internal/diagnoses/run` and `/internal/executions/run`
+  re-run one stage against an existing scan (the TS API exposes these per-tenant,
+  quota-checked, as `POST /scans/:id/diagnose` and `/scans/:id/execute`).
+- **Verification is NOT chained** — a shipped fix needs time to be crawled before
+  re-measuring means anything. The beat sweeps for assets that shipped at least
+  `schedule.delay_hours` ago and have no verification yet
+  ([verification/schedule.py](app/pipeline/verification/schedule.py)).
+  **Set `schedule.delay_hours: 0` in [verification.yaml](config/verification.yaml)
+  to verify immediately when testing**, or force one now via
+  `/internal/verifications/run`.
+
+**Diagnosis is the one stage that would otherwise need real HTTP**, which breaks
+the mock-first promise (and any account whose domain doesn't resolve — the demo
+account's `acme.example.com` doesn't). So the fetcher is config-driven
+([diagnosis.yaml](config/diagnosis.yaml) `fetcher.mode`): `auto` (default) serves
+the canned site in [`config/fixtures/site/`](config/fixtures/site/) whenever
+`GATEWAY_MODE=mock`, and hits the real SSRF-guarded network otherwise. Same idea
+as the gateway's response fixtures — the whole loop runs offline, no keys.
+
+Run a worker (+ beat for the scheduled work):
+
+```bash
+uv run celery -A app.celery_app worker --loglevel=info   # --pool=solo on Windows
+uv run celery -A app.celery_app beat --loglevel=info     # periodic scans + verification
+```
+
+Checkpoint: `uv run pytest tests/test_orchestration.py tests/test_verification_schedule.py`
+— the stages record jobs + scan stats and complete the scan, a skip is not a
+failure, a failing stage fails the scan and raises, and `delay_hours: 0` makes a
+shipped asset due immediately.
 
 ## Observability
 

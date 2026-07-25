@@ -1,6 +1,16 @@
 # Diagnosis stage settings (scraper caps + freshness thresholds).
 # The caps keep the scraper polite and un-weaponizable (principle 7 / SSRF).
 
+# Where the scraper gets its bytes. Diagnosis is the one stage that would
+# otherwise need real HTTP, which breaks the mock-first promise (and any account
+# whose domain doesn't resolve, e.g. the demo account).
+#   auto    — fixture when GATEWAY_MODE=mock, real HTTP otherwise (default)
+#   http    — always real network (SSRF-guarded)
+#   fixture — always the canned site in fixtures/site/ (offline, deterministic)
+fetcher:
+  mode: auto
+  fixtures_dir: fixtures/site
+
 scraper:
   user_agent: "GEO-DiagnosisBot/0.1 (+https://geo.example/bot)"
   timeout_s: 10

@@ -1,0 +1,5 @@
+# Fixture robots.txt for mock-mode diagnosis: permissive, so no blocked_crawler
+# gap is raised and the top-ranked fix is the comparison page (the asset that
+# carries target_prompt_ids and can therefore be verified end-to-end).
+User-agent: *
+Disallow:

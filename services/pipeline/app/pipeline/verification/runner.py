@@ -30,12 +30,16 @@ from app.pipeline.verification.contracts import SelfMetric, VerificationOutcome
 
 
 def _self_metric(
-    session, account_id: uuid.UUID, scan_id: uuid.UUID | None, prompt_ids: list
+    session,
+    account_id: uuid.UUID,
+    scan_id: uuid.UUID | None,
+    prompt_ids: list,
+    brand: str,
 ) -> SelfMetric:
     if scan_id is None:
         return SelfMetric()
     observations, mentioned, avg_position = MentionRepository(session).self_stats(
-        account_id, scan_id, prompt_ids
+        account_id, scan_id, prompt_ids, brand
     )
     return SelfMetric(
         observations=observations,
@@ -69,9 +73,14 @@ def run_verification(
             gap = session.get(Gap, asset.gap_id)
             scan_before_id = gap.scan_id if gap is not None else None
 
-        before = _self_metric(session, account_id, scan_before_id, target_prompt_ids)
-
+        # The brand whose visibility we measure — must match how the Monitor
+        # labels the target row, so self_stats counts the right rows.
         account = AccountRepository(session).get_by_id(account_id)
+        brand = (account.brand_name or account.name) if account else ""
+
+        before = _self_metric(
+            session, account_id, scan_before_id, target_prompt_ids, brand
+        )
         check_quota(session, account_id, plan=account.plan if account else None)
 
         after_scan = ScanRepository(session).create(
@@ -86,7 +95,9 @@ def run_verification(
 
     # 3. Read the after-metric the same way, evaluate, persist the verdict.
     with SessionLocal() as session:
-        after = _self_metric(session, account_id, scan_after_id, target_prompt_ids)
+        after = _self_metric(
+            session, account_id, scan_after_id, target_prompt_ids, brand
+        )
         result = evaluate(before, after)
         row = VerificationRepository(session).create(
             account_id=account_id,

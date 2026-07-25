@@ -1,8 +1,13 @@
 """Internal endpoints, guarded by the shared-secret dependency.
 
-/internal/ping proves the authenticated path; /internal/scans/run is the scan
-trigger the TS API calls. It validates the scan exists for the tenant (shared-DB
-contract) and enqueues the Monitor stage as a Celery job.
+/internal/ping proves the authenticated path. The rest are the triggers the TS
+API calls; each validates the row exists for the tenant (shared-DB contract) and
+enqueues Celery work:
+
+  scans/run          -> the FULL pipeline chain (monitor -> diagnose -> execute)
+  diagnoses/run      -> just the Diagnosis stage (re-run one stage)
+  executions/run     -> just the Plan+Execute stage
+  verifications/run  -> the Verification re-measure for one shipped asset
 """
 
 from __future__ import annotations
@@ -54,27 +59,53 @@ class ScanRunResponse(BaseModel):
     task_id: str | None = None
 
 
-@router.post("/scans/run", response_model=ScanRunResponse, status_code=202)
-async def run_scan(body: ScanRunRequest) -> ScanRunResponse:
-    """Accept a scan trigger from the TS API and enqueue the Monitor stage.
-
-    Validates the scan row exists for that tenant (shared-DB contract check),
-    then dispatches a Celery job that runs the LangGraph monitor stage and
-    writes mentions + share_of_voice.
-    """
+def _require_scan(account_id: uuid.UUID, scan_id: uuid.UUID) -> None:
     with SessionLocal() as session:
-        scan = ScanRepository(session).get(body.account_id, body.scan_id)
+        scan = ScanRepository(session).get(account_id, scan_id)
     if scan is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="scan not found for this account",
         )
 
+
+@router.post("/scans/run", response_model=ScanRunResponse, status_code=202)
+async def run_scan(body: ScanRunRequest) -> ScanRunResponse:
+    """Accept a scan trigger from the TS API and run the FULL pipeline.
+
+    Validates the scan row exists for that tenant (shared-DB contract check),
+    then dispatches the Celery chain: monitor -> diagnose -> plan+execute ->
+    finalize. Verification is not chained (it's scheduled after a delay).
+    """
+    _require_scan(body.account_id, body.scan_id)
+
     # Imported here so the FastAPI app doesn't require a broker connection just
     # to import; enqueue needs Redis (from infra) to be up.
-    from app.pipeline.tasks import run_scan_task
+    from app.pipeline.tasks import start_pipeline
 
-    async_result = run_scan_task.delay(str(body.scan_id), str(body.account_id))
+    task_id = start_pipeline(body.scan_id, body.account_id)
+    return ScanRunResponse(accepted=True, scan_id=body.scan_id, task_id=task_id)
+
+
+@router.post("/diagnoses/run", response_model=ScanRunResponse, status_code=202)
+async def run_diagnosis(body: ScanRunRequest) -> ScanRunResponse:
+    """Re-run ONLY the Diagnosis stage for an existing scan."""
+    _require_scan(body.account_id, body.scan_id)
+
+    from app.pipeline.tasks import run_diagnosis_task
+
+    async_result = run_diagnosis_task.delay(str(body.scan_id), str(body.account_id))
+    return ScanRunResponse(accepted=True, scan_id=body.scan_id, task_id=async_result.id)
+
+
+@router.post("/executions/run", response_model=ScanRunResponse, status_code=202)
+async def run_execution(body: ScanRunRequest) -> ScanRunResponse:
+    """Re-run ONLY the Plan+Execute stage for an existing scan."""
+    _require_scan(body.account_id, body.scan_id)
+
+    from app.pipeline.tasks import run_execution_task
+
+    async_result = run_execution_task.delay(str(body.scan_id), str(body.account_id))
     return ScanRunResponse(accepted=True, scan_id=body.scan_id, task_id=async_result.id)
 
 

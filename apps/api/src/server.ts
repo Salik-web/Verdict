@@ -22,6 +22,7 @@ import { registerCompetitorRoutes } from "./routes/competitors.js";
 import { registerDashboardRoutes } from "./routes/dashboard.js";
 import { registerPromptRoutes } from "./routes/prompts.js";
 import { registerScanRoutes } from "./routes/scans.js";
+import { registerStageRoutes } from "./routes/stages.js";
 import { registerVerifiedFactRoutes } from "./routes/verified-facts.js";
 import { ValidationFailed, sendValidationError } from "./validate.js";
 
@@ -147,6 +148,7 @@ export async function buildServer(config: AppConfig): Promise<{
   registerPromptRoutes(app, ctx);
   registerVerifiedFactRoutes(app, ctx);
   registerScanRoutes(app, ctx);
+  registerStageRoutes(app, ctx);
   registerDashboardRoutes(app, ctx);
   registerCmsCredentialRoutes(app, ctx);
   registerBillingRoutes(app, ctx);

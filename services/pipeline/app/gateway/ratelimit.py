@@ -1,7 +1,16 @@
-"""Per-provider rate limiting. In-memory token bucket for now, behind an
-interface so a Redis/distributed limiter can replace it later.
+"""Per-provider rate limiting: a token bucket for the ceiling, plus optional
+hard SPACING between calls. In-memory for now, behind an interface so a
+Redis/distributed limiter can replace it later.
 
-Providers without a configured `rpm` (e.g. mock) are never throttled.
+Two knobs, because they solve different problems:
+
+* `rpm` — the sustained ceiling, as a token bucket. The bucket starts FULL, so it
+  permits an instant burst of up to `rpm` calls. That's fine for a paid tier.
+* `min_interval_s` — a floor on the gap between consecutive calls to a provider.
+  Free tiers 429 on exactly the burst the bucket allows, so this is what makes a
+  free tier survivable. It's enforced first.
+
+Providers with neither configured (e.g. mock) are never throttled.
 """
 
 from __future__ import annotations
@@ -23,21 +32,57 @@ class NoopRateLimiter(RateLimiter):
 
 
 class _Bucket:
-    def __init__(self, rpm: int) -> None:
-        self.capacity = float(rpm)
-        self.tokens = float(rpm)
-        self.refill_per_s = rpm / 60.0
+    def __init__(self, rpm: int | None, min_interval_s: float | None) -> None:
+        self.rpm = rpm
+        self.capacity = float(rpm) if rpm else 0.0
+        self.tokens = float(rpm) if rpm else 0.0
+        self.refill_per_s = (rpm / 60.0) if rpm else 0.0
+        self.min_interval_s = min_interval_s or 0.0
         self.updated = time.monotonic()
+        self.last_call: float | None = None
         self.lock = threading.Lock()
 
 
 class TokenBucketRateLimiter(RateLimiter):
-    def __init__(self, rpm_by_provider: dict[str, int]) -> None:
-        self._buckets = {p: _Bucket(rpm) for p, rpm in rpm_by_provider.items() if rpm}
+    def __init__(
+        self,
+        rpm_by_provider: dict[str, int | None],
+        min_interval_by_provider: dict[str, float | None] | None = None,
+    ) -> None:
+        spacing = min_interval_by_provider or {}
+        names = set(rpm_by_provider) | set(spacing)
+        self._buckets = {
+            name: _Bucket(rpm_by_provider.get(name), spacing.get(name))
+            for name in names
+            if rpm_by_provider.get(name) or spacing.get(name)
+        }
 
     def acquire(self, provider: str) -> None:
         bucket = self._buckets.get(provider)
         if bucket is None:
+            return
+        self._space(bucket)
+        self._take_token(bucket)
+
+    def _space(self, bucket: _Bucket) -> None:
+        """Sleep until at least min_interval_s has passed since the last call."""
+        if bucket.min_interval_s <= 0:
+            return
+        while True:
+            with bucket.lock:
+                now = time.monotonic()
+                if bucket.last_call is None:
+                    bucket.last_call = now
+                    return
+                elapsed = now - bucket.last_call
+                if elapsed >= bucket.min_interval_s:
+                    bucket.last_call = now
+                    return
+                wait_s = bucket.min_interval_s - elapsed
+            time.sleep(min(wait_s, 1.0))
+
+    def _take_token(self, bucket: _Bucket) -> None:
+        if not bucket.rpm:
             return
         while True:
             with bucket.lock:

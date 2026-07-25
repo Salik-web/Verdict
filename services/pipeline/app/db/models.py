@@ -413,6 +413,13 @@ class LlmCostLog(Base):
         Numeric(12, 6), nullable=False, server_default="0"
     )
     mock: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    # Complete-ledger flags (see 0004): cached calls made no provider request
+    # (cost 0); status is 'ok' or 'error' (a call that raised, logged with zero
+    # usage). "actual spend" = rows with cached=false and status='ok'.
+    cached: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="ok")
     created_at: Mapped[datetime] = mapped_column(
         SA_TIMESTAMP(timezone=True), server_default=sa_func.now(), nullable=False
     )

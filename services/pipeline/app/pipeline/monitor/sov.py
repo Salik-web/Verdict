@@ -11,6 +11,15 @@ within an engine group (and an 'all' cross-engine roll-up):
 
 The target brand and known competitors are resolved to competitor_id / is_self;
 other detected brands still count toward share of voice with competitor_id=None.
+
+Every tracked competitor (and the target) gets a row even when it was not
+mentioned — a 0% row is a real finding ("measured, genuinely absent"), NOT the
+same as no data. That baseline is only seeded when observations > 0, so a scan
+that never measured produces no rows rather than a table of confident 0%s that
+would read as "you're invisible". Each row carries details.tracked so a later UI
+can tell a tracked competitor apart from a brand the engine surfaced that the
+customer never told us about (competitor_id=None, tracked=false) — the "here are
+competitors you didn't know you had" signal.
 """
 
 from __future__ import annotations
@@ -52,21 +61,68 @@ def make_brand_resolver(context: ScanContext):
     return resolve
 
 
-def _aggregate(engine: str, parses: list[ParsedMention], resolve) -> list[SoVRecord]:
+def make_canonicalizer(context: ScanContext):
+    """Map any brand string to its canonical display name, so an alias or a
+    case variant ("higgsfield") folds into the tracked entity's name and does not
+    spawn a duplicate SoV row. Unknown brands keep their surface form."""
+    canon: dict[str, str] = {}
+    for comp in context.competitors:
+        for key in [comp.name, *comp.aliases]:
+            canon[key.lower()] = comp.name
+    for key in [context.brand_name, *context.brand_aliases]:
+        canon[key.lower()] = context.brand_name
+
+    def canonical(brand: str) -> str:
+        return canon.get(brand.lower(), brand)
+
+    return canonical
+
+
+def _tracked_names(context: ScanContext) -> list[str]:
+    """Canonical names of every brand we're tracking: the target + competitors.
+    These get a 0-baseline row so "measured, not mentioned" shows as 0%, not a
+    missing row."""
+    names = [context.brand_name]
+    names.extend(c.name for c in context.competitors if not c.is_self)
+    # De-dupe while preserving order (self may also be listed as a competitor).
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for n in names:
+        if n.lower() not in seen:
+            seen.add(n.lower())
+            ordered.append(n)
+    return ordered
+
+
+def _aggregate(
+    engine: str,
+    parses: list[ParsedMention],
+    resolve,
+    canonical,
+    tracked_names: list[str],
+) -> list[SoVRecord]:
     observations = len(parses)
     brands: dict[str, _BrandAgg] = defaultdict(_BrandAgg)
 
     for p in parses:
         seen: dict[str, int | None] = {}
         if p.mentioned:
-            seen[p.brand] = p.position
+            seen[canonical(p.brand)] = p.position
         for c in p.competitors:
-            seen.setdefault(c.brand, c.position)
+            seen.setdefault(canonical(c.brand), c.position)
         for brand, position in seen.items():
             agg = brands[brand]
             agg.mention_count += 1
             if position is not None:
                 agg.positions.append(position)
+
+    # Seed a 0-baseline for every tracked brand we actually measured — so a
+    # tracked competitor that was genuinely never mentioned shows as 0%, not a
+    # vanished row. Only when observations > 0: no measurement => no rows, never a
+    # table of confident zeros for a failed/skipped scan.
+    if observations > 0:
+        for name in tracked_names:
+            brands.setdefault(name, _BrandAgg())
 
     total_mentions = sum(a.mention_count for a in brands.values())
     records: list[SoVRecord] = []
@@ -91,7 +147,13 @@ def _aggregate(engine: str, parses: list[ParsedMention], resolve) -> list[SoVRec
                     else 0.0
                 ),
                 avg_position=avg_position,
-                details={"observations": observations},
+                # tracked = we're deliberately measuring this brand (target or a
+                # configured competitor). false = the engine surfaced it and we
+                # weren't tracking it — the "competitor you didn't know you had".
+                details={
+                    "observations": observations,
+                    "tracked": is_self or competitor_id is not None,
+                },
             )
         )
     # Deterministic order: highest share first, then brand name.
@@ -101,6 +163,8 @@ def _aggregate(engine: str, parses: list[ParsedMention], resolve) -> list[SoVRec
 
 def compute_sov(context: ScanContext, parses: list[EngineParse]) -> list[SoVRecord]:
     resolve = make_brand_resolver(context)
+    canonical = make_canonicalizer(context)
+    tracked_names = _tracked_names(context)
 
     by_engine: dict[str, list[ParsedMention]] = defaultdict(list)
     for engine, parsed in parses:
@@ -108,10 +172,14 @@ def compute_sov(context: ScanContext, parses: list[EngineParse]) -> list[SoVReco
 
     records: list[SoVRecord] = []
     for engine, engine_parses in by_engine.items():
-        records.extend(_aggregate(engine, engine_parses, resolve))
+        records.extend(
+            _aggregate(engine, engine_parses, resolve, canonical, tracked_names)
+        )
 
     # Cross-engine roll-up (engine='all'). Identical to the per-engine row when
     # only one engine ran, but the structure supports many.
     all_parses = [p for _, p in parses]
-    records.extend(_aggregate("all", all_parses, resolve))
+    records.extend(
+        _aggregate("all", all_parses, resolve, canonical, tracked_names)
+    )
     return records

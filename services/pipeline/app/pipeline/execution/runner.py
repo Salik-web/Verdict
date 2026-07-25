@@ -34,7 +34,9 @@ from app.pipeline.verification.feedback import confidence_overrides_from_history
 _COMPARISON_CATEGORIES = {"comparison", "alternatives", "competitive"}
 
 
-def load_generator_context(session, account_id: uuid.UUID) -> GeneratorContext:
+def load_generator_context(
+    session, account_id: uuid.UUID, scan_id: uuid.UUID | None = None
+) -> GeneratorContext:
     account = AccountRepository(session).get_by_id(account_id)
     if account is None:
         raise ValueError(f"account {account_id} not found")
@@ -44,11 +46,15 @@ def load_generator_context(session, account_id: uuid.UUID) -> GeneratorContext:
         for c in CompetitorRepository(session).list_by_account(account_id)
         if not c.is_self
     ]
+    # `about`/`competitor` ride in the fact's jsonb value (no schema change), so a
+    # competitor's real pricing can be stated rather than invented.
     facts = [
         VerifiedFactRef(
             fact_type=f.fact_type,
             key=f.key,
             display=str((f.value or {}).get("display", "")),
+            about=(f.value or {}).get("about", "self"),
+            competitor=(f.value or {}).get("competitor"),
         )
         for f in VerifiedFactRepository(session).list_active(account_id)
     ]
@@ -58,6 +64,7 @@ def load_generator_context(session, account_id: uuid.UUID) -> GeneratorContext:
 
     return GeneratorContext(
         account_id=account_id,
+        scan_id=scan_id,
         brand_name=account.brand_name or account.name,
         brand_aliases=list(account.brand_aliases or []),
         target_url=f"https://{account.domain}" if account.domain else None,
@@ -106,7 +113,7 @@ def run_execution(
     scan_id = _as_uuid(scan_id) if scan_id else None
 
     with SessionLocal() as session:
-        context = load_generator_context(session, account_id)
+        context = load_generator_context(session, account_id, scan_id)
         gaps = load_open_gaps(session, account_id, scan_id)
         # Close the loop: past verification outcomes reweight the planner's
         # confidence for gap_types we've already shipped fixes for.

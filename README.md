@@ -75,6 +75,12 @@ typed Pydantic I/O. Every model call goes through the **model gateway** — mode
 | **Plan + Execute** | Rank gaps (impact×control×confidence), generate the top fix (comparison page / robots.txt / llms.txt) using **verified facts only**, sanitize + validate, store a tagged, downloadable `asset`. |
 | **Verify**         | Re-run a shipped asset's exact prompts (reusing Monitor), compare before/after share of voice → an honest `verifications` verdict + confidence; feed it back into the planner. Jittered scheduling + plan-quota double-check. |
 
+**One trigger runs the loop.** `POST /scans` runs monitor → diagnose →
+plan+execute as a Celery chain; the scan's status and `stats.stages` reflect the
+whole pipeline, and a failing stage fails it cleanly. Verify is scheduled on a
+config delay instead of chained (a fix needs time to land). Individual stages can
+be re-run via `POST /scans/:id/diagnose|execute` and `POST /assets/:id/verify`.
+
 ## Build progress
 
 Each phase is built, tested on one real example, and reviewed before the next.
@@ -100,6 +106,11 @@ Each phase is built, tested on one real example, and reviewed before the next.
   [SCALING.md](SCALING.md), structured logging + optional Sentry (scrubbed),
   `/internal/costs`, CI (gitleaks + `pnpm audit` + `pip-audit`) + Dependabot, and
   a full-loop end-to-end test with all guards active.
+- **10 — Orchestration + harness:** one scan trigger runs the whole chain
+  (monitor → diagnose → plan+execute) with per-stage `jobs` rows and
+  whole-pipeline scan status; scheduled verification on a config delay; per-stage
+  re-run triggers; and [`apps/web`](apps/web/) — a deliberately throwaway
+  click-through harness for testing the loop against the real API.
 
 Checkpoints run in mock mode (no keys): `pnpm --filter @geo/api test` (TS) and
 `cd services/pipeline && uv run pytest` (pipeline).

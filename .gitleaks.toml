@@ -28,4 +28,8 @@ paths = [
 regexes = [
   '''(?i)(changeme|placeholder|example|your[-_]?[a-z]+[-_]?here|<[^>]+>|xxx+|dummy)''',
   '''postgres://geo:geo@''',
+  # argon2 password HASHES are one-way and meant to be stored — they are not
+  # credentials. The only one committed is the local demo account's in
+  # db/seed.sql (password: demo-password-123, local dev only).
+  '''\$argon2id\$v=19\$m=\d+,t=\d+,p=\d+\$[A-Za-z0-9+/]+\$[A-Za-z0-9+/]+''',
 ]

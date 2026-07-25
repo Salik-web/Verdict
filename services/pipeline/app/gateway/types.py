@@ -36,12 +36,26 @@ class Usage(BaseModel):
         return self
 
 
+class Citation(BaseModel):
+    """A source the engine grounded on: `url` verbatim from the engine (a redirect
+    for Gemini), `title` the publisher domain it attributes it to."""
+
+    url: str
+    title: str | None = None
+
+
 class ProviderResult(BaseModel):
     """What a provider returns before the gateway prices it."""
 
     text: str
     usage: Usage
     raw: dict[str, Any] | None = None
+    # Source URLs the engine actually grounded its answer on (search-grounded
+    # providers only). Empty for ungrounded calls — an ungrounded answer is
+    # training-data recall and cites nothing. `citations` is the URLs alone (kept
+    # for back-compat); `sources` carries url + publisher title.
+    citations: list[str] = Field(default_factory=list)
+    sources: list[Citation] = Field(default_factory=list)
 
 
 class GatewayResponse(BaseModel):
@@ -55,3 +69,5 @@ class GatewayResponse(BaseModel):
     mode: GatewayMode
     cached: bool = False
     scenario: str | None = None
+    citations: list[str] = Field(default_factory=list)
+    sources: list[Citation] = Field(default_factory=list)

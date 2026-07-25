@@ -5,35 +5,46 @@ OpenRouter, DeepSeek, Perplexity, Moonshot/Kimi, OpenAI itself — so one adapte
 serves them all; only base_url + api_key_env differ (in config/models.yaml).
 
 Wired but exercised only when keys are present; mock mode never reaches here.
-The Gemini (non-OpenAI) adapter lands alongside real keys.
+Gemini is NOT served here — it needs Google Search grounding, which has no
+OpenAI-compatible equivalent; see providers/gemini.py.
+
+Retry/backoff/429 policy is shared with the Gemini adapter (providers/http.py).
 """
 
 from __future__ import annotations
 
-import os
-from typing import Any
-
-import httpx
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
+from typing import TYPE_CHECKING, Any
 
 from app.gateway.models_config import ResolvedTarget, RetryConfig
 from app.gateway.providers.base import Provider
+from app.gateway.providers.http import (
+    ProviderHTTPError,
+    ProviderRateLimited,
+    post_with_retry,
+    resolve_api_key,
+)
+from app.gateway.providers.registry import register_provider
 from app.gateway.types import Message, ProviderResult, Usage
 
+if TYPE_CHECKING:
+    from app.gateway.models_config import ModelsConfig
 
-class ProviderHTTPError(RuntimeError):
-    """Raised for retryable upstream failures (429 / 5xx / transport)."""
+__all__ = [
+    "OpenAICompatibleProvider",
+    "ProviderHTTPError",
+    "ProviderRateLimited",
+]
 
 
+@register_provider("openai_compatible")
 class OpenAICompatibleProvider(Provider):
     def __init__(self, retry_config: RetryConfig, timeout_s: float = 30.0) -> None:
         self._retry = retry_config
         self._timeout = timeout_s
+
+    @classmethod
+    def from_config(cls, config: ModelsConfig) -> OpenAICompatibleProvider:
+        return cls(config.retry)
 
     def generate(
         self,
@@ -46,50 +57,36 @@ class OpenAICompatibleProvider(Provider):
             raise ValueError(
                 f"provider '{target.provider}' is missing base_url/api_key_env"
             )
-        api_key = os.environ.get(cfg.api_key_env)
+        api_key = resolve_api_key(cfg.api_key_env)
         if not api_key:
             raise RuntimeError(
                 f"{cfg.api_key_env} is not set — required for provider "
-                f"'{target.provider}' (or run in mock mode)"
+                f"'{target.provider}' (or run in mock mode). Put it in "
+                f"services/pipeline/.env or the process environment."
             )
 
         payload: dict[str, Any] = {
             "model": target.model,
             "messages": [m.model_dump() for m in messages],
         }
+        # Native JSON mode for tasks whose output we parse. Providers may ignore
+        # it (or not support it), so callers still parse fence-tolerantly.
+        if target.json_output:
+            payload["response_format"] = {"type": "json_object"}
         for key in ("temperature", "max_tokens", "top_p", "response_format"):
             if key in params:
-                payload[key] = params[key]
+                payload[key] = params[key]  # explicit param wins
 
-        return self._post_with_retry(cfg.base_url, api_key, payload)
-
-    def _post_with_retry(
-        self, base_url: str, api_key: str, payload: dict[str, Any]
-    ) -> ProviderResult:
-        # Build the tenacity decorator from config at call time.
-        retrying = retry(
-            reraise=True,
-            stop=stop_after_attempt(self._retry.max_attempts),
-            wait=wait_exponential(
-                multiplier=self._retry.initial_backoff_s,
-                max=self._retry.max_backoff_s,
-            ),
-            retry=retry_if_exception_type((ProviderHTTPError, httpx.TransportError)),
+        url = f"{cfg.base_url.rstrip('/')}/chat/completions"
+        resp = post_with_retry(
+            url,
+            headers={"Authorization": f"Bearer {api_key}"},
+            payload=payload,
+            retry=self._retry,
+            timeout_s=self._timeout,
+            provider=target.provider,
+            model=target.model,
         )
-        return retrying(self._post_once)(base_url, api_key, payload)
-
-    def _post_once(
-        self, base_url: str, api_key: str, payload: dict[str, Any]
-    ) -> ProviderResult:
-        url = f"{base_url.rstrip('/')}/chat/completions"
-        with httpx.Client(timeout=self._timeout) as client:
-            resp = client.post(
-                url,
-                json=payload,
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-        if resp.status_code == 429 or resp.status_code >= 500:
-            raise ProviderHTTPError(f"{resp.status_code} from {url}: {resp.text[:200]}")
         resp.raise_for_status()
         data = resp.json()
         choice = data["choices"][0]["message"]["content"]

@@ -65,8 +65,19 @@ class ScraperConfig(BaseModel):
     respect_robots: bool = True
 
 
+class FetcherConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # auto = fixture in mock gateway mode, http otherwise.
+    mode: Literal["auto", "http", "fixture"] = "auto"
+    fixtures_dir: str = "fixtures/site"
+
+    def fixtures_path(self) -> Path:
+        return _CONFIG / self.fixtures_dir
+
+
 class DiagnosisConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    fetcher: FetcherConfig = FetcherConfig()
     scraper: ScraperConfig
     llms_txt: dict
     freshness: dict

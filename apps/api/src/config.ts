@@ -24,6 +24,10 @@ const envSchema = z.object({
   INTERNAL_SHARED_SECRET: z.string().min(8),
   // Base URL of the Python pipeline's FastAPI service.
   PIPELINE_URL: z.string().url().default("http://localhost:8000"),
+  // Filesystem root the pipeline writes generated asset artifacts under (its
+  // content_ref values are relative to this). Local dev shares the disk; in prod
+  // this becomes a shared/object store. Relative to the API process cwd.
+  PIPELINE_ARTIFACTS_DIR: z.string().default("../../services/pipeline"),
 
   // Frontend origin for CORS (locked; not '*').
   FRONTEND_ORIGIN: z.string().url().default("http://localhost:5173"),

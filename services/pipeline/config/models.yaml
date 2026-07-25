@@ -22,8 +22,16 @@ tasks:
       provider: perplexity
       model: sonar
     dev:
-      provider: groq
-      model: llama-3.3-70b-versatile
+      # Gemini direct via Google AI Studio, WITH Google Search grounding.
+      # Grounding is the whole point for measurement: an ungrounded answer is
+      # training-data recall and cites nothing, so we'd be measuring the wrong
+      # thing and Diagnosis would get no cited_urls.
+      # Grounding free allowance is per model generation — 2.5 gets 1,500
+      # grounded requests/day free vs Gemini 3's 5,000/month, so 2.5-flash is the
+      # better iteration target. See ai.google.dev/gemini-api/docs/pricing.
+      provider: gemini
+      model: gemini-2.5-flash
+      grounding: true
     mock:
       provider: mock
       model: sonar
@@ -33,9 +41,11 @@ tasks:
     prod:
       provider: deepseek
       model: deepseek-v4-flash
+      json_output: true
     dev:
       provider: groq
       model: llama-3.1-8b-instant
+      json_output: true # we parse this into ParsedMention
     mock:
       provider: mock
       model: deepseek-v4-flash
@@ -45,9 +55,15 @@ tasks:
     prod:
       provider: kimi
       model: kimi-k2.7
+      json_output: true
     dev:
+      # Free OpenRouter slugs churn — the old deepseek-chat-v3:free was removed
+      # (404). Verify a current one at https://openrouter.ai/models?q=free and
+      # ping it before committing. This one was confirmed to resolve + honor JSON
+      # mode + return parseable JSON on 2026-07-22.
       provider: openrouter
-      model: "deepseek/deepseek-chat-v3:free"
+      model: "openai/gpt-oss-20b:free"
+      json_output: true # we parse this into an AssetDraft
     mock:
       provider: mock
       model: kimi-k2.7
@@ -63,6 +79,12 @@ fallbacks:
 
 # ── Providers ────────────────────────────────────────────────────────────
 # type: mock | openai_compatible | gemini  (gemini adapter lands with keys)
+#
+# rpm            = token-bucket ceiling (allows a burst up to rpm, then throttles)
+# min_interval_s = hard SPACING between consecutive calls to that provider.
+#   Free tiers punish bursts, and the bucket starts full — so rpm alone lets the
+#   first `rpm` calls fire instantly and trip a 429. Spacing is what keeps a free
+#   tier happy; set it to ~60/rpm (or higher) for free providers.
 providers:
   mock:
     type: mock
@@ -80,7 +102,13 @@ providers:
     type: gemini
     base_url: https://generativelanguage.googleapis.com/v1beta
     api_key_env: GOOGLE_API_KEY
-    rpm: 60
+    # Google no longer publishes per-model free-tier RPM/RPD in the docs — it's
+    # per-project and shown in AI Studio (aistudio.google.com/rate-limit).
+    # These are conservative: widely-reported free-tier 2.5-flash is ~10 RPM, so
+    # 7s spacing keeps us under it with margin. RAISE min_interval_s if you see
+    # 429s; check your own dashboard for the real numbers.
+    rpm: 10
+    min_interval_s: 7.0
   deepseek:
     type: openai_compatible
     base_url: https://api.deepseek.com
@@ -96,11 +124,15 @@ providers:
     base_url: https://api.groq.com/openai/v1
     api_key_env: GROQ_API_KEY
     rpm: 30
+    min_interval_s: 2.0 # free tier: ~30 rpm -> 2s apart
   openrouter:
     type: openai_compatible
     base_url: https://openrouter.ai/api/v1
     api_key_env: OPENROUTER_API_KEY
     rpm: 20
+    # Free tier is ~20 req/min AND a small daily cap on `:free` models.
+    # 4s spacing stays well under the per-minute limit.
+    min_interval_s: 4.0
 
 # ── Pricing (USD per 1,000,000 tokens) ───────────────────────────────────
 pricing:
@@ -126,22 +158,48 @@ pricing:
   "mock/kimi-k2.7":
     input: 0.60
     output: 2.50
-  # Free dev providers cost nothing.
-  "groq/llama-3.3-70b-versatile":
-    input: 0.0
-    output: 0.0
-  "groq/llama-3.1-8b-instant":
-    input: 0.0
-    output: 0.0
-  "openrouter/deepseek/deepseek-chat-v3:free":
-    input: 0.0
-    output: 0.0
+  # ── dev models, priced at their REAL PAID RATES ────────────────────────
+  # These run on free tiers, so the actual bill is $0 — but pricing them at 0.0
+  # made cost_usd useless for judging unit economics. Priced at list rates,
+  # cost_usd answers "what would this scan cost if we were paying?" while the run
+  # itself stays free. llm_cost_log therefore reports MODELLED cost, not the
+  # amount charged; `mock` marks simulated calls, but there is no "was free-tier"
+  # flag — see SCALING.md/README before quoting these numbers as spend.
+  "groq/llama-3.1-8b-instant": # groq.com/pricing
+    input: 0.05
+    output: 0.08
+  "groq/llama-3.3-70b-versatile": # groq.com/pricing
+    input: 0.59
+    output: 0.79
+  # The `:free` slug costs nothing; priced here at the PAID openai/gpt-oss-20b
+  # rate (OpenRouter list price, per their /models API on 2026-07-22) so the
+  # modelled economics are honest.
+  "openrouter/openai/gpt-oss-20b:free":
+    input: 0.03
+    output: 0.13
+  # Gemini 2.5 Flash: $0.30/1M in, $2.50/1M out (output includes thinking tokens).
+  # grounded_request = $35 / 1,000 grounded prompts = $0.035 each, charged ONLY on
+  # grounded calls (measurement). The first 1,500 grounded prompts/day are free,
+  # which this flat rate deliberately ignores — it models the marginal paid cost.
+  # ai.google.dev/gemini-api/docs/pricing
+  "gemini/gemini-2.5-flash":
+    input: 0.30
+    output: 2.50
+    grounded_request: 0.035
 
 # ── Cross-cutting defaults ───────────────────────────────────────────────
+# Retries apply to 429 / 5xx / transport errors (mock never reaches the network).
+# Tuned for free tiers: back off in seconds, not milliseconds, and honour the
+# provider's Retry-After when it sends one. After max_attempts the call FAILS —
+# a persistent 429 (e.g. a daily cap) must surface, not spin.
 retry:
   max_attempts: 3
-  initial_backoff_s: 0.5
-  max_backoff_s: 8.0
+  initial_backoff_s: 2.0
+  max_backoff_s: 30.0
+  respect_retry_after: true
+  # Cap on an honoured Retry-After; a provider asking for 10 minutes should fail
+  # the scan with a clear error rather than block a worker that long.
+  max_retry_after_s: 60.0
 
 cache:
   enabled: true

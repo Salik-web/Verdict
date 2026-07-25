@@ -1,11 +1,18 @@
 import { and, desc, eq } from "drizzle-orm";
 import type { Database } from "../db/client.js";
-import { assets, gaps, mentions, shareOfVoice } from "../db/schema.js";
+import {
+  assets,
+  gaps,
+  mentions,
+  shareOfVoice,
+  verifications,
+} from "../db/schema.js";
 
 export type Mention = typeof mentions.$inferSelect;
 export type Gap = typeof gaps.$inferSelect;
 export type Asset = typeof assets.$inferSelect;
 export type ShareOfVoice = typeof shareOfVoice.$inferSelect;
+export type Verification = typeof verifications.$inferSelect;
 
 /**
  * Read-only dashboard queries. All tenant-scoped; pipeline stages write these
@@ -57,6 +64,47 @@ export class DashboardRepository {
       .where(where)
       .orderBy(desc(assets.createdAt))
       .limit(opts.limit ?? 100);
+  }
+
+  async getAsset(accountId: string, id: string): Promise<Asset | undefined> {
+    const rows = await this.db
+      .select()
+      .from(assets)
+      .where(and(eq(assets.accountId, accountId), eq(assets.id, id)))
+      .limit(1);
+    return rows[0];
+  }
+
+  async listVerifications(
+    accountId: string,
+    opts: { assetId?: string; limit?: number } = {},
+  ): Promise<Verification[]> {
+    const where = opts.assetId
+      ? and(
+          eq(verifications.accountId, accountId),
+          eq(verifications.assetId, opts.assetId),
+        )
+      : eq(verifications.accountId, accountId);
+    return this.db
+      .select()
+      .from(verifications)
+      .where(where)
+      .orderBy(desc(verifications.createdAt))
+      .limit(opts.limit ?? 100);
+  }
+
+  async getVerification(
+    accountId: string,
+    id: string,
+  ): Promise<Verification | undefined> {
+    const rows = await this.db
+      .select()
+      .from(verifications)
+      .where(
+        and(eq(verifications.accountId, accountId), eq(verifications.id, id)),
+      )
+      .limit(1);
+    return rows[0];
   }
 
   async listShareOfVoice(

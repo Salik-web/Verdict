@@ -34,7 +34,8 @@ class MentionRepository:
                 position=r.position,
                 sentiment=r.sentiment,
                 sentiment_score=r.sentiment_score,
-                cited_urls=r.cited_urls,
+                cited_urls=[c.model_dump() for c in r.cited_urls],
+                raw_response_ref=r.raw_response,
             )
             for r in records
         ]
@@ -47,11 +48,17 @@ class MentionRepository:
         account_id: uuid.UUID | str,
         scan_id: uuid.UUID | str,
         prompt_ids: list[uuid.UUID],
+        brand: str,
     ) -> tuple[int, int, float | None]:
         """Self-visibility over a fixed prompt set for one scan, as
-        (observations, mentioned_count, avg_position). Each mentions row is the
-        target brand's own (prompt, engine, run) answer, so this is exactly the
-        before/after signal verification compares. Empty prompt set -> zero."""
+        (observations, mentioned_count, avg_position). The before/after signal
+        verification compares.
+
+        MUST filter to the target `brand`: the mentions table now holds a row per
+        competitor as well as the target, so counting all rows would inflate
+        observations and wreck the mention-rate. One target row exists per
+        (prompt, engine, run), so filtering by brand restores that denominator.
+        Empty prompt set -> zero."""
         if not prompt_ids:
             return (0, 0, None)
         rows = self.session.scalars(
@@ -59,6 +66,7 @@ class MentionRepository:
                 Mention.account_id == _as_uuid(account_id),
                 Mention.scan_id == _as_uuid(scan_id),
                 Mention.prompt_id.in_(prompt_ids),
+                Mention.brand == brand,
             )
         ).all()
         observations = len(rows)

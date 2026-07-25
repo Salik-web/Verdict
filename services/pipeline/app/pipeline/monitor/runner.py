@@ -73,7 +73,15 @@ def run_scan(
     scan_id: uuid.UUID | str,
     gateway: Gateway | None = None,
     prompt_ids: list[uuid.UUID] | None = None,
+    finalize: bool = True,
 ) -> dict[str, Any]:
+    """Run the Monitor stage for a scan and persist mentions + share_of_voice.
+
+    `finalize=True` (standalone use, e.g. a verification re-scan) means this call
+    owns the scan lifecycle and marks it completed. In the full pipeline chain
+    monitor is only the FIRST stage, so the chain passes finalize=False and the
+    scan is completed later, once every stage has run.
+    """
     account_id = _as_uuid(account_id)
     scan_id = _as_uuid(scan_id)
 
@@ -91,14 +99,20 @@ def run_scan(
             n_sov = ShareOfVoiceRepository(session).insert_many(
                 account_id, scan_id, output.share_of_voice
             )
+            # Correct the scan's engine_set to what actually ran (real provider/
+            # model labels), not the config slot names. Independent of finalize,
+            # so a chained scan is also accurate before it completes.
+            engines_ran = sorted({m.engine for m in output.mentions})
+            ScanRepository(session).set_engine_set(account_id, scan_id, engines_ran)
             stats = {
                 "prompts": len(context.prompts),
-                "engines": context.engines,
+                "engines": engines_ran,
                 "repeats": context.repeats,
                 "mentions": n_mentions,
                 "sov_rows": n_sov,
             }
-            ScanRepository(session).mark_completed(account_id, scan_id, stats)
+            if finalize:
+                ScanRepository(session).mark_completed(account_id, scan_id, stats)
             session.commit()
         return stats
     except Exception as exc:

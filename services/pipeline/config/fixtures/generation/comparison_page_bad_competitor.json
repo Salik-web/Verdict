@@ -1,0 +1,29 @@
+{
+  "scenario": "comparison_page_bad_competitor",
+  "description": "A HALLUCINATED COMPETITOR claim: every self claim is fine, but the rival's price ($12/seat) has no verified competitor fact behind it. Output validation must reject it — inventing a competitor's pricing on a customer's page is a factual/legal risk, so it is checked exactly like a self claim.",
+  "text": {
+    "type": "comparison_page",
+    "title": "Acme Analytics vs Globex Insights",
+    "html": "<h1>Acme Analytics vs Globex Insights</h1><p>Acme Analytics starts at $0, usage-based. Globex Insights charges $12/seat/month.</p>",
+    "faq_jsonld": {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": []
+    },
+    "claims": [
+      {
+        "fact_type": "pricing",
+        "key": "starting_price",
+        "value": "$0, usage-based",
+        "about": "self"
+      },
+      {
+        "fact_type": "pricing",
+        "key": "competitor_seat_price",
+        "value": "$12/seat/month",
+        "about": "competitor"
+      }
+    ]
+  },
+  "usage": { "prompt_tokens": 615, "completion_tokens": 95 }
+}

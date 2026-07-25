@@ -3,8 +3,7 @@ import { z } from "zod";
 import { authOf, buildRequireAuth } from "../auth/plugin.js";
 import type { AppContext } from "../context.js";
 import { PipelineClientError } from "../internal/pipeline-client.js";
-import { limitsFor } from "../plans.js";
-import { AccountRepository } from "../repositories/account-repository.js";
+import { checkScanQuota } from "../quota.js";
 import { AuditRepository } from "../repositories/audit-repository.js";
 import { ScanRepository } from "../repositories/scan-repository.js";
 import { parse, uuidParam } from "../validate.js";
@@ -14,47 +13,30 @@ const createSchema = z.object({
   engines: z.array(z.string().min(1).max(40)).min(1).max(10).default(["all"]),
 });
 
-function startOfToday(): Date {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
-
 export function registerScanRoutes(
   app: FastifyInstance,
   ctx: AppContext,
 ): void {
   const requireAuth = buildRequireAuth(ctx.sessions);
   const scans = new ScanRepository(ctx.db);
-  const accounts = new AccountRepository(ctx.db);
   const audit = new AuditRepository(ctx.db);
 
-  // POST /scans — creates the scan row, then asks the pipeline to run it.
+  // POST /scans — creates the scan row, then asks the pipeline to run the FULL
+  // loop for it: monitor -> diagnose -> plan+execute.
   app.post("/scans", { preHandler: requireAuth }, async (req, reply) => {
     const { accountId, userId } = authOf(req);
     const body = parse(createSchema, req.body);
 
     // Usage quota keyed to the account's plan — this is also the cost cap.
-    const account = await accounts.findById(accountId);
-    const limits = limitsFor(account?.plan ?? "free");
-    const usedToday = await scans.countSince(accountId, startOfToday());
-    if (usedToday >= limits.scans_per_day) {
-      const secondsToMidnightUtc = Math.ceil(
-        (Date.UTC(
-          new Date().getUTCFullYear(),
-          new Date().getUTCMonth(),
-          new Date().getUTCDate() + 1,
-        ) -
-          Date.now()) /
-          1000,
-      );
+    const quota = await checkScanQuota(ctx, accountId);
+    if (!quota.ok) {
       return reply
         .code(429)
-        .header("Retry-After", String(secondsToMidnightUtc))
+        .header("Retry-After", String(quota.retryAfter))
         .send({
           error: "quota_exceeded",
-          limit: limits.scans_per_day,
-          used: usedToday,
+          limit: quota.limit,
+          used: quota.used,
         });
     }
 

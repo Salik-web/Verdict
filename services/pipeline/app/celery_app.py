@@ -15,6 +15,7 @@ from celery import Celery
 from app.core.config import get_settings
 from app.core.observability import configure_logging, init_sentry
 from app.pipeline.schedule.config import get_schedule_config
+from app.pipeline.verification.config import get_verification_config
 
 configure_logging()
 init_sentry()  # no-op unless SENTRY_DSN is set
@@ -34,6 +35,13 @@ celery_app.conf.update(
     accept_content=["json"],
     timezone="UTC",
     enable_utc=True,
+    # A real (non-mock) stage can hang on a slow/rate-limited provider. The SOFT
+    # limit raises SoftTimeLimitExceeded *inside* the task, so `_stage`'s except
+    # block still runs and marks the job + scan failed with the error — no scan
+    # left stuck at `running`. The HARD limit is the backstop that kills a truly
+    # wedged process; it's higher so the soft path wins in practice.
+    task_soft_time_limit=_settings.celery_task_soft_time_limit_s,
+    task_time_limit=_settings.celery_task_time_limit_s,
 )
 
 # Config-driven beat: tick every `tick_minutes` and enqueue whatever is due. Run
@@ -42,6 +50,12 @@ celery_app.conf.beat_schedule = {
     "enqueue-due-scans": {
         "task": "schedule.enqueue_due_scans",
         "schedule": float(get_schedule_config().tick_minutes * 60),
+    },
+    # Verification is scheduled, never chained: a shipped fix needs time to land
+    # before re-measuring. Delay + tick are config (verification.yaml).
+    "enqueue-due-verifications": {
+        "task": "verification.enqueue_due",
+        "schedule": float(get_verification_config().schedule.check_every_minutes * 60),
     },
 }
 

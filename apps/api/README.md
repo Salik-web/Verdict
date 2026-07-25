@@ -90,21 +90,40 @@ needed (mock-first).
 | GET             | `/auth/me`                                         | session            | Current user + account.                                                     |
 | GET/PATCH       | `/account`                                         | session            | The caller's account (no `/accounts/:id` by design).                        |
 | CRUD            | `/competitors`, `/prompts`, `/verified-facts`      | session            | Tenant-scoped resources.                                                    |
-| POST            | `/scans`                                           | session            | Creates scan row, enforces plan quota, triggers the pipeline; 202 + scanId. |
-| GET             | `/scans`, `/scans/:id`                             | session            | Scan status/history.                                                        |
+| POST            | `/scans`                                           | session            | Creates scan row, enforces plan quota, runs the FULL pipeline; 202 + scanId. |
+| GET             | `/scans`, `/scans/:id`                             | session            | Scan status/history (status + `stats.stages` = whole-pipeline progress).     |
+| POST            | `/scans/:id/diagnose`, `/scans/:id/execute`        | session            | Re-run ONE stage without a full scan; quota-checked.                        |
+| POST            | `/assets/:id/verify`                               | session            | Force the verification re-measure now (bypasses the scheduled delay).       |
 | GET             | `/mentions`, `/gaps`, `/assets`, `/share-of-voice` | session            | Dashboard reads (pipeline writes them).                                     |
+| GET             | `/assets/:id`                                      | session            | One asset + its generated content (read from `content_ref`, guarded).       |
+| GET             | `/verifications`, `/verifications/:id`             | session            | Before/after proof: verdict, confidence, metrics.                           |
 | POST/GET/DELETE | `/cms-credentials`                                 | session            | Envelope-encrypted; metadata-only responses.                                |
 | GET             | `/billing`                                         | session            | Plan + limits (stub).                                                       |
 | POST            | `/billing/checkout`, `/billing/webhook`            | —                  | 501 stubs; Stripe (with signature verification) lands with the frontend.    |
 | GET             | `/internal/pipeline-health`                        | none (server-side) | Pings the pipeline via the shared-secret client.                            |
 
-## Pipeline trigger
+## Pipeline triggers
 
 `POST /scans` inserts a `scans` row (status `pending`), then calls the Python
 service's `POST /internal/scans/run` through the shared-secret
-[PipelineClient](src/internal/pipeline-client.ts). The pipeline validates the
+[PipelineClient](src/internal/pipeline-client.ts), which runs the **whole loop**
+as a Celery chain: monitor → diagnose → plan+execute. The pipeline validates the
 scan exists in the shared DB and acknowledges (202). If the pipeline is
 unreachable the row stays `pending` and the API returns 502 with the `scanId`.
+
+Poll `GET /scans/:id` for whole-pipeline progress: `status` covers the entire
+chain (only `completed` once every stage ran; `failed` + `error` the moment one
+does) and `stats.stages` carries each stage's result.
+
+Individual stages can be re-run without a full scan —
+`POST /scans/:id/diagnose`, `POST /scans/:id/execute`, `POST /assets/:id/verify`
+([routes/stages.ts](src/routes/stages.ts)). Each is tenant-scoped (another
+tenant's id 404s) and passes the same plan-quota gate as `POST /scans`, so a
+re-run can't be used to walk around the cost cap.
+
+**Verification is not chained** — a shipped fix needs time to land before
+re-measuring is meaningful, so the pipeline's beat schedules it on a config delay
+(`verification.yaml`). `POST /assets/:id/verify` forces it immediately.
 
 ## Config
 

@@ -18,12 +18,25 @@ from app.gateway.types import Usage
 _PER_TOKENS = Decimal(1_000_000)
 
 
-def compute_cost(price: Price | None, usage: Usage) -> Decimal:
+def compute_cost(
+    price: Price | None, usage: Usage, *, grounded: bool = False
+) -> Decimal:
+    """Tokens x price, plus a flat per-request fee for grounded search.
+
+    Grounded search is billed per REQUEST, not per token (Gemini 2.5: $35/1,000
+    grounded prompts), and that flat fee dwarfs the token cost — so a pure
+    per-token calculation reports roughly zero for the most expensive call in the
+    pipeline. `grounded` comes from the resolved target, so an ungrounded call on
+    the same model never pays it.
+    """
     if price is None:
         return Decimal("0")
     inp = Decimal(usage.prompt_tokens) / _PER_TOKENS * Decimal(str(price.input))
     out = Decimal(usage.completion_tokens) / _PER_TOKENS * Decimal(str(price.output))
-    return (inp + out).quantize(Decimal("0.000001"))
+    total = inp + out
+    if grounded:
+        total += Decimal(str(price.grounded_request))
+    return total.quantize(Decimal("0.000001"))
 
 
 class CostEntry(BaseModel):
@@ -36,6 +49,10 @@ class CostEntry(BaseModel):
     usage: Usage
     cost_usd: Decimal
     mock: bool
+    # Complete-ledger flags: cached=True means served from cache (no provider
+    # call, cost 0); status 'error' means the call raised. Both still get a row.
+    cached: bool = False
+    status: str = "ok"
 
 
 class CostSink:
@@ -75,5 +92,7 @@ class DbCostSink(CostSink):
                 total_tokens=entry.usage.total_tokens,
                 cost_usd=entry.cost_usd,
                 mock=entry.mock,
+                cached=entry.cached,
+                status=entry.status,
             )
             session.commit()

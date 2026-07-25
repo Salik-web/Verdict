@@ -15,8 +15,14 @@ prompt_target_count: 28
 default_category: "B2B SaaS product analytics"
 
 # Engines measured in a scan. Start with one; more are added here.
+#
+# `name` is an internal SLOT id (used to cycle mock scenarios and match a scan's
+# requested engines) — it is NOT the label stored in the DB. The stored engine
+# label is derived from the model that actually answered (e.g. gemini/
+# gemini-2.5-flash in dev, mock/sonar in mock), so the DB never misattributes.
+# Hence a neutral slot name here rather than a provider name.
 engines:
-  - name: perplexity_sonar
+  - name: primary
     gateway_task: measurement
     # MOCK-ONLY: scenarios cycled by run index so repeated runs vary, which
     # exercises share-of-voice smoothing. Omitted/ignored in dev & prod (there

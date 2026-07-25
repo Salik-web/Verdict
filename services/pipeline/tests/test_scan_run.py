@@ -15,6 +15,7 @@ from app.db.base import SessionLocal
 from app.db.models import Scan
 from app.db.repositories import (
     MentionRepository,
+    PromptRepository,
     ScanRepository,
     ShareOfVoiceRepository,
 )
@@ -46,14 +47,29 @@ def demo_scan_id():
 def test_run_scan_persists_mentions_and_sov(demo_scan_id):
     stats = run_scan(DEMO_ACCOUNT_ID, demo_scan_id)
 
-    # Demo account has 3 active prompts x 1 engine x 5 repeats = 15 mentions.
-    assert stats["mentions"] == 15
+    # 3 prompts x 5 repeats = 15 answers. Each answer stores 1 target row + 1 per
+    # competitor named (3 in every mock scenario) = 4 rows -> 60 mention rows.
+    assert stats["mentions"] == 60
 
     with SessionLocal() as s:
-        assert (
-            ScanRepository(s).get(DEMO_ACCOUNT_ID, demo_scan_id).status == "completed"
+        scan = ScanRepository(s).get(DEMO_ACCOUNT_ID, demo_scan_id)
+        assert scan.status == "completed"
+        # Engine label derived from the model that answered (mock/sonar), not the
+        # "primary" config slot.
+        assert scan.engine_set == ["mock/sonar"]
+
+        assert MentionRepository(s).count_for_scan(DEMO_ACCOUNT_ID, demo_scan_id) == 60
+        # Exactly one TARGET-brand row per answer (the verification denominator).
+        prompt_ids = [
+            p.id
+            for p in PromptRepository(s).list_by_account(
+                DEMO_ACCOUNT_ID, active_only=True
+            )
+        ]
+        obs, mentioned, _ = MentionRepository(s).self_stats(
+            DEMO_ACCOUNT_ID, demo_scan_id, prompt_ids, "Acme Analytics"
         )
-        assert MentionRepository(s).count_for_scan(DEMO_ACCOUNT_ID, demo_scan_id) == 15
+        assert obs == 15 and mentioned == 9
 
         sov = ShareOfVoiceRepository(s).list_for_scan(DEMO_ACCOUNT_ID, demo_scan_id)
         allrows = {r.brand: r for r in sov if r.engine == "all"}

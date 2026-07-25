@@ -1,10 +1,10 @@
 {
   "scenario": "comparison_page_asset",
-  "description": "Structured comparison-page asset. Every self claim matches a seeded verified_fact. The html includes a <script> tag on purpose so the sanitizer's XSS stripping can be proven.",
+  "description": "Structured comparison-page asset. Every self claim matches a seeded verified_fact. The html includes a <script> tag on purpose so the sanitizer's XSS stripping can be proven. NOTE: html carries NO FAQ section — the generator renders the visible FAQ from faq_jsonld so the two can't drift apart.",
   "text": {
     "type": "comparison_page",
     "title": "Acme Analytics vs Globex Insights: An Honest Comparison",
-    "html": "<h1>Acme Analytics vs Globex Insights</h1><p>Choosing product analytics for your B2B SaaS team? Here's a fair, side-by-side look.</p><h2>Pricing</h2><p>Acme Analytics starts at $0, usage-based, with 1M events/mo free. Globex Insights starts at $99/mo.</p><h2>Where Acme stands out</h2><ul><li>Warehouse-native (BigQuery, Snowflake, Redshift)</li><li>Self-serve onboarding</li></ul><script>alert('xss')</script><h2>FAQ</h2><p>See structured data below.</p>",
+    "html": "<h1>Acme Analytics vs Globex Insights</h1><p>Choosing product analytics for your B2B SaaS team? Here's a fair, side-by-side look.</p><h2>Pricing</h2><p>Acme Analytics starts at $0, usage-based, with 1M events/mo free. Globex Insights starts at $99/mo.</p><h2>Where Acme stands out</h2><ul><li>Warehouse-native (BigQuery, Snowflake, Redshift)</li><li>Self-serve onboarding</li></ul><script>alert('xss')</script>",
     "faq_jsonld": {
       "@context": "https://schema.org",
       "@type": "FAQPage",

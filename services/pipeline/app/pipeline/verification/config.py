@@ -20,13 +20,21 @@ class FeedbackConfig(BaseModel):
     confidence_floor: float
 
 
+class VerificationScheduleConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # Hours to wait after an asset ships before re-measuring. 0 = immediately
+    # (useful for testing the loop end-to-end without waiting).
+    delay_hours: float
+    check_every_minutes: int
+
+
 class VerificationConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     min_delta: float
     min_observations: int
     strong_delta: float
     full_confidence_observations: int
-    default_delay_hours: int
+    schedule: VerificationScheduleConfig
     feedback: FeedbackConfig
 
 

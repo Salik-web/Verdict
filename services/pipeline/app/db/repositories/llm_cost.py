@@ -84,6 +84,8 @@ class LlmCostRepository:
         total_tokens: int,
         cost_usd: Decimal,
         mock: bool,
+        cached: bool = False,
+        status: str = "ok",
         job_id: uuid.UUID | str | None = None,
         scan_id: uuid.UUID | str | None = None,
     ) -> LlmCostLog:
@@ -99,6 +101,8 @@ class LlmCostRepository:
             total_tokens=total_tokens,
             cost_usd=cost_usd,
             mock=mock,
+            cached=cached,
+            status=status,
         )
         self.session.add(row)
         self.session.flush()

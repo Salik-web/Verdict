@@ -17,10 +17,16 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from app.gateway import Gateway
-from app.pipeline.contracts import MentionRecord, ScanContext, SoVRecord
+from app.pipeline.contracts import (
+    CitationSource,
+    MentionRecord,
+    ScanContext,
+    SoVRecord,
+)
 from app.pipeline.monitor.config import EngineConfig
 from app.pipeline.monitor.measure import measure_once
 from app.pipeline.monitor.parse import parse_answer
+from app.pipeline.monitor.records import records_for_answer
 from app.pipeline.monitor.sov import EngineParse, compute_sov, make_brand_resolver
 
 
@@ -55,19 +61,37 @@ def build_monitor_graph(gateway: Gateway, engines: list[EngineConfig]):
                     parsed = parse_answer(
                         gateway, context, answer_text=answer.text, scenario=scenario
                     )
-                    parses.append((engine.name, parsed))
-                    mentions.append(
-                        MentionRecord(
+                    # #1 The engine label is the model that ACTUALLY answered, not
+                    # the config slot name — so the DB never misattributes (the
+                    # "perplexity_sonar" slot resolving to Gemini in dev is the bug
+                    # this fixes). Same label for every row of this answer + SoV.
+                    engine_label = f"{answer.provider}/{answer.model}"
+
+                    # #3 Prefer the engine's own grounded sources (url + publisher
+                    # title); fall back to the LLM-judge's inferred URLs (no title).
+                    if answer.sources:
+                        cited = [
+                            CitationSource(url=s.url, title=s.title)
+                            for s in answer.sources
+                        ]
+                    else:
+                        cited = [CitationSource(url=u) for u in parsed.cited_urls]
+
+                    parses.append((engine_label, parsed))
+                    # One target row (carrying the per-answer raw text + citations)
+                    # plus one row per named competitor — see records_for_answer,
+                    # shared with the re-parse path so they can't drift.
+                    mentions.extend(
+                        records_for_answer(
                             prompt_id=prompt.id,
-                            engine=engine.name,
+                            engine=engine_label,
                             run=run,
-                            brand=context.brand_name,
-                            competitor_id=focal_competitor_id,
-                            mentioned=parsed.mentioned,
-                            position=parsed.position,
-                            sentiment=parsed.sentiment,
-                            sentiment_score=parsed.sentiment_score,
-                            cited_urls=parsed.cited_urls,
+                            brand_name=context.brand_name,
+                            focal_competitor_id=focal_competitor_id,
+                            parsed=parsed,
+                            cited=cited,
+                            raw_response=answer.text,
+                            resolve=resolve,
                         )
                     )
         return {"parses": parses, "mentions": mentions}

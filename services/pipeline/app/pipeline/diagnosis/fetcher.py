@@ -10,7 +10,8 @@ same interface later without touching callers.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from urllib.parse import urljoin
+from pathlib import Path
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 from pydantic import BaseModel, Field
@@ -89,3 +90,48 @@ class FakeFetcher(Fetcher):
         if url in self._pages:
             return self._pages[url]
         return FetchResult(url=url, final_url=url, status=404, ok=False)
+
+
+class FixtureFetcher(Fetcher):
+    """Serves a canned site from config/fixtures/site/ instead of the network.
+
+    The mock-mode analogue of the gateway's response fixtures: it lets the WHOLE
+    pipeline (including Diagnosis, which is the one stage that would otherwise
+    need real HTTP) run end-to-end offline and deterministically — no keys, no
+    network, no dependence on the account's domain actually resolving.
+
+    Path-based: `/robots.txt` -> robots.txt fixture, `/` -> home.html, anything
+    else (llms.txt, competitor pages) -> 404, which is what drives the
+    missing_llms_txt gap.
+    """
+
+    def __init__(self, fixtures_dir: Path) -> None:
+        self._dir = fixtures_dir
+
+    def _read(self, name: str) -> str | None:
+        path = self._dir / name
+        return path.read_text(encoding="utf-8") if path.is_file() else None
+
+    def get(self, url: str) -> FetchResult:
+        path = urlsplit(url).path or "/"
+        body: str | None
+        content_type = "text/html; charset=utf-8"
+        if path.rstrip("/") == "/robots.txt".rstrip("/") or path == "/robots.txt":
+            body = self._read("robots.txt")
+            content_type = "text/plain; charset=utf-8"
+        elif path in ("", "/"):
+            body = self._read("home.html")
+        else:
+            body = None
+
+        if body is None:
+            return FetchResult(url=url, final_url=url, status=404, ok=False)
+        return FetchResult(
+            url=url,
+            final_url=url,
+            status=200,
+            ok=True,
+            headers={"content-type": content_type},
+            text=body,
+            content_type=content_type,
+        )

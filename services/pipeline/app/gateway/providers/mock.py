@@ -14,9 +14,11 @@ from typing import Any
 
 from app.gateway.models_config import FIXTURES_DIR, ResolvedTarget
 from app.gateway.providers.base import Provider
+from app.gateway.providers.registry import register_provider
 from app.gateway.types import Message, ProviderResult, Usage
 
 
+@register_provider("mock")
 class MockProvider(Provider):
     def __init__(self, fixtures_dir: Path = FIXTURES_DIR) -> None:
         self.fixtures_dir = fixtures_dir

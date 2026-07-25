@@ -5,6 +5,10 @@
 -- never required by production.
 
 -- Demo account ------------------------------------------------------------
+-- plan=enterprise on purpose: this is the local demo/testing tenant, and the
+-- test suites create scans against it too, so a low scans_per_day cap would make
+-- the harness 429 on "Run scan" for reasons that have nothing to do with the app.
+-- DO UPDATE (not DO NOTHING) so re-seeding converges an existing dev DB.
 INSERT INTO accounts (id, name, slug, domain, brand_name, brand_aliases, plan, subscription_status)
 VALUES (
   '00000000-0000-0000-0000-000000000001',
@@ -13,22 +17,26 @@ VALUES (
   'acme.example.com',
   'Acme Analytics',
   ARRAY['Acme', 'AcmeAI'],
-  'pro',
+  'enterprise',
   'active'
 )
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET plan = EXCLUDED.plan;
 
 -- Owner user --------------------------------------------------------------
-INSERT INTO users (id, account_id, email, name, role, status)
+-- Password is 'demo-password-123' (argon2id, same params as the API's hasher).
+-- LOCAL DEMO CREDENTIALS ONLY — this account exists so you can log into a
+-- pre-populated tenant from the dev harness. Never seed this into a real env.
+INSERT INTO users (id, account_id, email, name, role, status, password_hash)
 VALUES (
   '00000000-0000-0000-0000-0000000000a1',
   '00000000-0000-0000-0000-000000000001',
   'owner@acme.example.com',
   'Acme Owner',
   'owner',
-  'active'
+  'active',
+  '$argon2id$v=19$m=19456,t=2,p=1$SyLjlC/PjAMEd7ox+rhxfQ$VDf0Gg7EQG0pNxFql8p1Nl21hp/Tut1LcqWDc0rwDAM'
 )
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash;
 
 -- Competitors (incl. the account's own brand as is_self) -------------------
 INSERT INTO competitors (id, account_id, name, domain, aliases, is_self)
@@ -67,5 +75,13 @@ VALUES
    'https://acme.example.com/features', true),
   ('00000000-0000-0000-0000-0000000000f4', '00000000-0000-0000-0000-000000000001',
    'feature', 'self_serve_onboarding', '{"display": "Self-serve onboarding"}',
-   'https://acme.example.com/features', true)
-ON CONFLICT (id) DO NOTHING;
+   'https://acme.example.com/features', true),
+  -- Competitor facts. `about`/`competitor` live in the jsonb value (no schema
+  -- change). Claims about a rival are machine-checked against these exactly like
+  -- claims about the customer, so a comparison page can only state a competitor's
+  -- price if someone verified it and put it here.
+  ('00000000-0000-0000-0000-0000000000f5', '00000000-0000-0000-0000-000000000001',
+   'pricing', 'competitor_price',
+   '{"display": "$99/mo", "about": "competitor", "competitor": "Globex Insights"}',
+   'https://globex.example.com/pricing', true)
+ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value, source = EXCLUDED.source;

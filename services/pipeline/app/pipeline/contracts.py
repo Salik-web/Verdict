@@ -43,9 +43,26 @@ class ScanContext(BaseModel):
     repeats: int
 
 
-# ── Parser output (LLM-as-judge) ─────────────────────────────────────────
-class BrandRef(BaseModel):
+# ── Citations ────────────────────────────────────────────────────────────
+class CitationSource(BaseModel):
+    """A source an engine cited. `url` is what the engine returns verbatim (for
+    grounded Gemini that's a vertexaisearch redirect); `title` is the publisher
+    domain the engine attributes it to (e.g. "uefa.com") — the useful GEO signal
+    for 'which sources does the engine trust'. Stored as-is in mentions.cited_urls.
+    """
+
     model_config = ConfigDict(extra="forbid")
+    url: str
+    title: str | None = None
+
+
+# ── Parser output (LLM-as-judge) ─────────────────────────────────────────
+# extra="ignore" (not forbid): this is untrusted LLM output. A real judge model
+# routinely adds fields we didn't ask for (e.g. a per-competitor `mentioned` or
+# `sentiment_score`); we read only the fields below, so surplus keys should be
+# dropped, not crash the parse. The membership guard re-derives what matters.
+class BrandRef(BaseModel):
+    model_config = ConfigDict(extra="ignore")
     brand: str
     position: int | None = None
     sentiment: str | None = None
@@ -54,7 +71,7 @@ class BrandRef(BaseModel):
 class ParsedMention(BaseModel):
     """Structured extraction of one engine answer for one run."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
     brand: str
     mentioned: bool
     position: int | None = None
@@ -66,8 +83,15 @@ class ParsedMention(BaseModel):
 
 # ── Stage output ─────────────────────────────────────────────────────────
 class MentionRecord(BaseModel):
-    """One row destined for the mentions table — the TARGET brand's visibility
-    for a single (prompt, engine, run)."""
+    """One row for the mentions table: how ONE brand fared in a single
+    (prompt, engine, run) answer. There is one row for the target brand plus one
+    for each competitor the engine named, so per-run/per-competitor data is
+    persisted, not just the aggregate.
+
+    `raw_response` (the engine's verbatim answer) and `cited_urls` are per-answer
+    facts, so they're carried only on the target row; competitor rows leave them
+    empty rather than duplicating the same prose N times.
+    """
 
     model_config = ConfigDict(extra="forbid")
     prompt_id: uuid.UUID
@@ -79,7 +103,10 @@ class MentionRecord(BaseModel):
     position: int | None
     sentiment: str | None
     sentiment_score: float | None
-    cited_urls: list[str]
+    cited_urls: list[CitationSource] = Field(default_factory=list)
+    # Verbatim engine answer (target row only). Grounded calls cost money — this
+    # is the evidence to audit the parser's extraction against.
+    raw_response: str | None = None
 
 
 class SoVRecord(BaseModel):

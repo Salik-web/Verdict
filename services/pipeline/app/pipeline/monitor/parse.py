@@ -8,7 +8,9 @@ from __future__ import annotations
 from app.gateway import Gateway
 from app.gateway.types import Message
 from app.pipeline.contracts import ParsedMention, ScanContext
+from app.pipeline.json_text import extract_json
 from app.pipeline.monitor.config import load_prompt_template
+from app.pipeline.monitor.guard import apply_membership_guard, build_terms_for
 
 
 def parse_answer(
@@ -31,4 +33,14 @@ def parse_answer(
         scan_id=context.scan_id,
         scenario=scenario,
     )
-    return ParsedMention.model_validate_json(res.text)
+    # Tolerant: real judges wrap JSON in fences/prose even in JSON mode.
+    parsed = ParsedMention.model_validate(extract_json(res.text))
+    # Deterministic guard against the parser echoing the competitor list and
+    # against null ranks: only brands literally present in the answer survive, and
+    # positions come from first-occurrence order. Runs identically on a re-parse.
+    return apply_membership_guard(
+        parsed,
+        answer_text,
+        self_terms=[context.brand_name, *context.brand_aliases],
+        terms_for=build_terms_for(context),
+    )

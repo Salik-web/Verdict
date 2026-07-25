@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict
@@ -21,8 +20,6 @@ _PIPELINE_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = _PIPELINE_ROOT / "config" / "models.yaml"
 FIXTURES_DIR = _PIPELINE_ROOT / "config" / "fixtures"
 
-ProviderType = Literal["mock", "openai_compatible", "gemini"]
-
 
 class TaskTarget(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -30,31 +27,75 @@ class TaskTarget(BaseModel):
     model: str
     fixture_dir: str | None = None
     default_scenario: str | None = None
+    # Search-grounded generation (Gemini only, today). Grounded answers reflect
+    # what a user sees NOW and carry source URLs; ungrounded ones are
+    # training-data recall with no citations. Billed separately from tokens —
+    # keep it on `measurement` and off the cheap tasks.
+    grounding: bool = False
+    # Ask the provider for machine-readable JSON (its native JSON mode). Set it on
+    # tasks whose output we parse (processing/generation), NOT on measurement —
+    # measurement must stay prose, both because that's what a user sees and because
+    # JSON mode cannot be combined with grounding on Gemini 2.5 (the combo is
+    # Gemini-3-only and in preview: ai.google.dev/gemini-api/docs/structured-output).
+    # Parsing stays fence-tolerant regardless, since providers may ignore this.
+    json_output: bool = False
 
 
 class ProviderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    type: ProviderType
+    # The registry key of the adapter that serves this provider (models.yaml).
+    # Not an enum: valid == an adapter is registered under this name, checked
+    # with a helpful error at gateway build. Keeps config decoupled from which
+    # adapters happen to exist, so a new one is a drop-in.
+    type: str
     base_url: str | None = None
     api_key_env: str | None = None
     rpm: int | None = None
+    # Hard spacing between consecutive calls to this provider. The token bucket
+    # starts full, so `rpm` alone permits an instant burst — which is exactly what
+    # free tiers 429 on. Spacing is what makes a free tier survivable.
+    min_interval_s: float | None = None
 
 
 class Price(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    # USD per 1,000,000 tokens.
     input: float
     output: float
+    # USD per GROUNDED request, charged on top of tokens.
+    #
+    # This exists because grounded search is NOT billed per token: Gemini 2.5
+    # bills "$35 / 1,000 grounded prompts" — a flat fee per request that a
+    # per-token model literally cannot express. It dominates the bill (a grounded
+    # prompt costs ~$0.035 vs fractions of a cent of tokens), so omitting it makes
+    # cost_usd meaningless for the one task that actually costs money.
+    #
+    # CAVEAT: this is per-PROMPT billing (Gemini 2.5 semantics). Gemini 3 bills per
+    # SEARCH QUERY executed, and one call can run several — for a Gemini 3 model
+    # this field would need to multiply by len(groundingMetadata.webSearchQueries).
+    # See ai.google.dev/gemini-api/docs/pricing.
+    grounded_request: float = 0.0
 
 
 class RetryConfig(BaseModel):
     max_attempts: int = 3
     initial_backoff_s: float = 0.5
     max_backoff_s: float = 8.0
+    # Honour a 429's Retry-After header, but never wait longer than
+    # max_retry_after_s — past that, fail the scan instead of pinning a worker.
+    respect_retry_after: bool = True
+    max_retry_after_s: float = 60.0
 
 
 class CacheConfig(BaseModel):
     enabled: bool = True
     ttl_s: int = 3600
+    # Tasks that must NEVER be cache-served. `measurement` belongs here: the whole
+    # point of asking each prompt `repeats` times is fresh samples, and the cache
+    # key doesn't include the run index — so caching collapses every repeat into
+    # one stored answer (and, worse, the repeats become cache hits that skip the
+    # cost log). Excluding it makes each repeat a real, independently-logged call.
+    exclude_tasks: list[str] = ["measurement"]
 
 
 class ModelsConfig(BaseModel):
@@ -92,6 +133,8 @@ class ModelsConfig(BaseModel):
             model=target.model,
             fixture_dir=target.fixture_dir,
             default_scenario=target.default_scenario,
+            grounding=target.grounding,
+            json_output=target.json_output,
             price=price,
         )
 
@@ -103,6 +146,8 @@ class ResolvedTarget(BaseModel):
     model: str
     fixture_dir: str | None
     default_scenario: str | None
+    grounding: bool = False
+    json_output: bool = False
     price: Price | None
 
 

@@ -8,8 +8,13 @@
  * Run: pnpm --filter @geo/api test   (infra + pipeline must be running)
  */
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { after, before, describe, it } from "node:test";
-import { loadConfig } from "../config.js";
+import { resolveArtifactPath } from "../artifacts.js";
+import { type AppConfig, loadConfig } from "../config.js";
+import { assets, verifications } from "../db/schema.js";
 import { buildServer } from "../server.js";
 
 // Loads apps/api/.env (cwd when run via `pnpm --filter @geo/api test`).
@@ -24,8 +29,10 @@ const run = Date.now().toString(36);
 const ipA = { "x-forwarded-for": `10.1.${Math.floor(Math.random() * 250)}.1` };
 const ipB = { "x-forwarded-for": `10.2.${Math.floor(Math.random() * 250)}.2` };
 
-type App = Awaited<ReturnType<typeof buildServer>>["app"];
-let app: App;
+type Built = Awaited<ReturnType<typeof buildServer>>;
+let app: Built["app"];
+let ctx: Built["ctx"];
+let config: AppConfig;
 
 function cookieHeader(res: {
   cookies: Array<{ name: string; value: string }>;
@@ -38,9 +45,11 @@ describe("phase 4 checkpoint", async () => {
   let cookieB = "";
   let competitorId = "";
   let scanId = "";
+  let accountIdA = "";
 
   before(async () => {
-    ({ app } = await buildServer(loadConfig()));
+    config = loadConfig();
+    ({ app, ctx } = await buildServer(config));
     await app.ready();
   });
   after(async () => {
@@ -60,6 +69,7 @@ describe("phase 4 checkpoint", async () => {
     });
     assert.equal(a.statusCode, 201);
     cookieA = cookieHeader(a);
+    accountIdA = a.json().accountId;
     assert.match(cookieA, /geo_session=/);
 
     const b = await app.inject({
@@ -187,7 +197,68 @@ describe("phase 4 checkpoint", async () => {
       headers: { cookie: cookieA },
     });
     assert.equal(fetched.statusCode, 200);
-    assert.equal(fetched.json().status, "pending");
+    // POST /scans now runs the whole chain, so if a Celery worker is up the scan
+    // may already have moved on — any live lifecycle state is correct here.
+    assert.ok(
+      ["pending", "running", "completed"].includes(fetched.json().status),
+      `unexpected scan status: ${fetched.json().status}`,
+    );
+  });
+
+  it("triggers individual stages, tenant-scoped and quota-checked", async () => {
+    // Re-run ONE stage without a full scan. Tenant A has 1 scan today (limit 2),
+    // so the quota gate passes; the gate itself is proven by the quota test next.
+    const diagnose = await app.inject({
+      method: "POST",
+      url: `/scans/${scanId}/diagnose`,
+      headers: { cookie: cookieA },
+    });
+    assert.equal(
+      diagnose.statusCode,
+      202,
+      `expected 202, got ${diagnose.statusCode}: ${diagnose.body} — is the Python service running?`,
+    );
+
+    const execute = await app.inject({
+      method: "POST",
+      url: `/scans/${scanId}/execute`,
+      headers: { cookie: cookieA },
+    });
+    assert.equal(execute.statusCode, 202);
+
+    // Cross-tenant: B cannot re-run a stage on A's scan (404, not a leak).
+    const crossStage = await app.inject({
+      method: "POST",
+      url: `/scans/${scanId}/diagnose`,
+      headers: { cookie: cookieB },
+    });
+    assert.equal(crossStage.statusCode, 404);
+
+    // The verify trigger is asset-scoped (it forces the scheduled re-measure).
+    const assetId = randomUUID();
+    await ctx.db.insert(assets).values({
+      id: assetId,
+      accountId: accountIdA,
+      type: "comparison_page",
+      title: "Trigger fixture",
+      status: "validated",
+      validationState: "passed",
+      targetPromptIds: [],
+      metadata: {},
+    });
+    const verify = await app.inject({
+      method: "POST",
+      url: `/assets/${assetId}/verify`,
+      headers: { cookie: cookieA },
+    });
+    assert.equal(verify.statusCode, 202);
+
+    const crossVerify = await app.inject({
+      method: "POST",
+      url: `/assets/${assetId}/verify`,
+      headers: { cookie: cookieB },
+    });
+    assert.equal(crossVerify.statusCode, 404);
   });
 
   it("blocks cross-tenant scan reads and enforces the plan quota", async () => {
@@ -247,6 +318,91 @@ describe("phase 4 checkpoint", async () => {
     });
     assert.equal(list.statusCode, 200);
     assert.ok(!list.body.includes("s3cr3t-value"));
+  });
+
+  it("serves a single asset with its content + tenant-scoped verifications", async () => {
+    // Seed an asset + its on-disk content + a verification (the pipeline writes
+    // these; here we insert directly to test the read endpoints deterministically).
+    const assetId = randomUUID();
+    const contentRef = `artifacts/${accountIdA}/${assetId}.html`;
+    const html = "<h1>Acme vs Globex</h1><p>Seeded asset body.</p>";
+    const full = resolveArtifactPath(config, accountIdA, assetId, contentRef);
+    await mkdir(path.dirname(full), { recursive: true });
+    await writeFile(full, html, "utf8");
+
+    await ctx.db.insert(assets).values({
+      id: assetId,
+      accountId: accountIdA,
+      type: "comparison_page",
+      title: "Acme vs Globex",
+      contentRef,
+      status: "validated",
+      validationState: "passed",
+      targetPromptIds: [],
+      metadata: {},
+    });
+    const [ver] = await ctx.db
+      .insert(verifications)
+      .values({
+        accountId: accountIdA,
+        assetId,
+        verdict: "improved",
+        confidence: "0.62",
+        beforeMetrics: { mention_rate: 0 },
+        afterMetrics: { mention_rate: 0.6 },
+      })
+      .returning();
+    assert.ok(ver);
+
+    // GET /assets/:id — row + file content, tenant-scoped.
+    const asset = await app.inject({
+      method: "GET",
+      url: `/assets/${assetId}`,
+      headers: { cookie: cookieA },
+    });
+    assert.equal(asset.statusCode, 200);
+    assert.equal(asset.json().type, "comparison_page");
+    assert.match(asset.json().content, /Seeded asset body/);
+    assert.equal(asset.json().contentError, null);
+
+    // Cross-tenant asset read is a 404 (not a leak, and no file access).
+    const crossAsset = await app.inject({
+      method: "GET",
+      url: `/assets/${assetId}`,
+      headers: { cookie: cookieB },
+    });
+    assert.equal(crossAsset.statusCode, 404);
+
+    // GET /verifications (list + by id), tenant-scoped.
+    const list = await app.inject({
+      method: "GET",
+      url: "/verifications",
+      headers: { cookie: cookieA },
+    });
+    assert.equal(list.statusCode, 200);
+    assert.ok(list.json().some((v: { id: string }) => v.id === ver.id));
+
+    const one = await app.inject({
+      method: "GET",
+      url: `/verifications/${ver.id}`,
+      headers: { cookie: cookieA },
+    });
+    assert.equal(one.statusCode, 200);
+    assert.equal(one.json().verdict, "improved");
+
+    // Cross-tenant: B's list is empty and the direct read is 404.
+    const crossList = await app.inject({
+      method: "GET",
+      url: "/verifications",
+      headers: { cookie: cookieB },
+    });
+    assert.equal(crossList.json().length, 0);
+    const crossOne = await app.inject({
+      method: "GET",
+      url: `/verifications/${ver.id}`,
+      headers: { cookie: cookieB },
+    });
+    assert.equal(crossOne.statusCode, 404);
   });
 
   it("refresh rotation works and reused tokens are rejected", async () => {

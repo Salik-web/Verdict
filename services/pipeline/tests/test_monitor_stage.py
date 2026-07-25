@@ -45,19 +45,33 @@ def _context() -> ScanContext:
             PromptRef(id=uuid.uuid4(), text="Best product analytics tool?"),
             PromptRef(id=uuid.uuid4(), text="Top analytics platforms for SaaS?"),
         ],
-        engines=["perplexity_sonar"],
+        engines=["primary"],
         repeats=5,
     )
 
 
-def test_stage_emits_one_mention_per_run():
+def test_stage_emits_target_and_competitor_rows_per_run():
     out = run_monitor(_context(), _mock_gateway())
-    # 2 prompts x 1 engine x 5 repeats
-    assert len(out.mentions) == 10
-    assert all(m.brand == "Acme Analytics" for m in out.mentions)
-    assert all(m.competitor_id == ACME for m in out.mentions)
+    target = [m for m in out.mentions if m.brand == "Acme Analytics"]
+    competitors = [m for m in out.mentions if m.brand != "Acme Analytics"]
+
+    # One target row per answer: 2 prompts x 5 repeats = 10.
+    assert len(target) == 10
+    assert all(m.competitor_id == ACME for m in target)
     # 3 of every 5 runs mention Acme (CW), 2 do not (CI).
-    assert sum(m.mentioned for m in out.mentions) == 6
+    assert sum(m.mentioned for m in target) == 6
+
+    # #4 Plus one row per competitor named that run (3 each) — per-run granularity.
+    assert len(competitors) == 30
+    assert all(m.mentioned for m in competitors)
+
+    # #1 Engine label is the model that answered (mock/sonar), not the "primary"
+    # config slot — the DB never misattributes.
+    assert all(m.engine == "mock/sonar" for m in out.mentions)
+
+    # #2 Raw response is on target rows only (per-answer fact, not duplicated).
+    assert all(m.raw_response for m in target)
+    assert all(m.raw_response is None for m in competitors)
 
 
 def test_share_of_voice_math_is_correct():

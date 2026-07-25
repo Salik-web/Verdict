@@ -41,6 +41,15 @@ class Settings(BaseSettings):
     # with no secret). Set it in prod to turn on scrubbed error reporting.
     sentry_dsn: str | None = None
 
+    # Celery task time limits (seconds). The SOFT limit raises inside the task,
+    # so the stage wrapper still runs and marks the scan failed — that's what
+    # stops a hung or rate-limited provider call from leaving a scan stuck at
+    # `running` forever. The HARD limit kills the worker process (no handler
+    # runs), so it must stay comfortably above the soft one. Real scans are slow
+    # by design on a free tier: spacing between calls is deliberate waiting.
+    celery_task_soft_time_limit_s: int = 600  # 10 min
+    celery_task_time_limit_s: int = 660  # 11 min
+
     # Gateway mode selects how model calls are served. Default `mock` runs the
     # whole pipeline with NO API keys. dev = free providers, prod = paid models.
     # Switching modes is this one env var — no code change.

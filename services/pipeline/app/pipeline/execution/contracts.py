@@ -41,10 +41,21 @@ class Backlog(BaseModel):
 
 # ── Generation ───────────────────────────────────────────────────────────
 class VerifiedFactRef(BaseModel):
+    """An authoritative fact the generator may state.
+
+    `about` distinguishes facts about the customer from facts about a named
+    competitor — both live in verified_facts (no schema change); the convention is
+    that the row's jsonb `value` carries {"display": ..., "about": ...,
+    "competitor": ...}. Competitor facts exist so a comparison page can state a
+    rival's real pricing instead of the model inventing one.
+    """
+
     model_config = ConfigDict(extra="forbid")
     fact_type: str
     key: str
     display: str
+    about: ClaimAbout = "self"
+    competitor: str | None = None
 
 
 class CompetitorRef(BaseModel):
@@ -59,6 +70,10 @@ class GeneratorContext(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     account_id: uuid.UUID
+    # Carried purely so the generation call can be COST-ATTRIBUTED to the scan
+    # that caused it. Without it the row lands with scan_id NULL and per-scan cost
+    # silently undercounts what a scan actually costs.
+    scan_id: uuid.UUID | None = None
     brand_name: str
     brand_aliases: list[str] = Field(default_factory=list)
     target_url: str | None = None
@@ -71,6 +86,14 @@ class GeneratorContext(BaseModel):
             if f.fact_type == fact_type and f.key == key:
                 return f
         return None
+
+    @property
+    def self_facts(self) -> list[VerifiedFactRef]:
+        return [f for f in self.verified_facts if f.about == "self"]
+
+    @property
+    def competitor_facts(self) -> list[VerifiedFactRef]:
+        return [f for f in self.verified_facts if f.about == "competitor"]
 
 
 class Claim(BaseModel):

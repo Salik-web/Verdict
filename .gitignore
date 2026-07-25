@@ -13,6 +13,9 @@ build/
 *.tsbuildinfo
 .pnpm-store/
 .eslintcache
+# Next.js build output + dev cache (apps/web)
+.next/
+next-env.d.ts
 
 # ---- Python ----
 __pycache__/
@@ -37,3 +40,8 @@ infra/data/
 
 # ---- Generated pipeline assets (downloadable artifacts) ----
 services/pipeline/artifacts/
+scripts/real-account.json
+
+# ---- curl cookie jars from manual API testing (contain session tokens) ----
+*jar.txt
+cookies.txt
