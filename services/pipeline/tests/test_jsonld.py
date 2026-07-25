@@ -60,9 +60,15 @@ def test_empty_answer_text_is_caught():
 
 
 def test_wrong_type_and_empty_entities():
-    assert any("@type is not FAQPage" in v for v in validate_faqpage(
-        {"@context": "https://schema.org", "@type": "WebPage", "mainEntity": []}
-    ))
-    assert any("mainEntity is missing or empty" in v for v in validate_faqpage(
-        {"@context": "https://schema.org", "@type": "FAQPage"}
-    ))
+    assert any(
+        "@type is not FAQPage" in v
+        for v in validate_faqpage(
+            {"@context": "https://schema.org", "@type": "WebPage", "mainEntity": []}
+        )
+    )
+    assert any(
+        "mainEntity is missing or empty" in v
+        for v in validate_faqpage(
+            {"@context": "https://schema.org", "@type": "FAQPage"}
+        )
+    )

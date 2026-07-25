@@ -46,6 +46,11 @@ jobs:
           node-version: 20
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+      # @geo/shared exports from ./dist, which is gitignored — so it does not
+      # exist on a fresh checkout and `tsc --noEmit` in apps/api fails with
+      # TS2307 "Cannot find module '@geo/shared'". Build it before anything
+      # typechecks or imports the API server.
+      - run: pnpm --filter @geo/shared build
       - run: pnpm --filter @geo/api db:migrate
       - run: pnpm --filter @geo/api db:seed
       - run: pnpm --filter @geo/api lint

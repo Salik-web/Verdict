@@ -23,8 +23,9 @@ def _context() -> ScanContext:
         brand_name="Imagine Art",
         brand_aliases=["ImagineArt"],
         competitors=[
-            CompetitorRef(id=SELF, name="Imagine Art", aliases=["ImagineArt"],
-                          is_self=True),
+            CompetitorRef(
+                id=SELF, name="Imagine Art", aliases=["ImagineArt"], is_self=True
+            ),
             CompetitorRef(id=GLOBEX, name="Globex Insights", aliases=["Globex"]),
         ],
         prompts=[],

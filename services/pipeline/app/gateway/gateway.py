@@ -13,10 +13,9 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
+from decimal import Decimal
 from functools import lru_cache
 from typing import Any
-
-from decimal import Decimal
 
 from app.core.config import get_settings
 from app.gateway.cache import CacheBackend, InMemoryTTLCache, cache_key

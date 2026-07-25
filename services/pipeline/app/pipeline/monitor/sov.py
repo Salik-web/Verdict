@@ -179,7 +179,5 @@ def compute_sov(context: ScanContext, parses: list[EngineParse]) -> list[SoVReco
     # Cross-engine roll-up (engine='all'). Identical to the per-engine row when
     # only one engine ran, but the structure supports many.
     all_parses = [p for _, p in parses]
-    records.extend(
-        _aggregate("all", all_parses, resolve, canonical, tracked_names)
-    )
+    records.extend(_aggregate("all", all_parses, resolve, canonical, tracked_names))
     return records

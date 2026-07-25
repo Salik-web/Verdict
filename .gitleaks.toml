@@ -28,6 +28,14 @@ paths = [
 regexes = [
   '''(?i)(changeme|placeholder|example|your[-_]?[a-z]+[-_]?here|<[^>]+>|xxx+|dummy)''',
   '''postgres://geo:geo@''',
+  # FILL_ME is the explicit "you must replace this" marker in the seed configs;
+  # scripts/create-real-account.mjs refuses to run while any remains.
+  '''FILL_ME''',
+  # Deterministic, non-secret values baked into CI and the test suite. They are
+  # not credentials to anything: the CI database is ephemeral and destroyed with
+  # the runner, and the test constants only satisfy a required-env check.
+  '''ci-[a-z]+-secret-\d+''',
+  '''test-secret-\d+''',
   # argon2 password HASHES are one-way and meant to be stored — they are not
   # credentials. The only one committed is the local demo account's in
   # db/seed.sql (password: demo-password-123, local dev only).
