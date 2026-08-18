@@ -6,7 +6,7 @@
 #
 #   docker build -f apps/api/Dockerfile .
 
-FROM node:20-slim AS base
+FROM node:22-slim AS base
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
 RUN corepack enable
 WORKDIR /repo
@@ -38,7 +38,7 @@ COPY --from=build /repo/apps/api ./apps/api
 COPY db ./db
 
 WORKDIR /repo/apps/api
-# node:20-slim ships a `node` user; drop root before serving traffic.
+# node:22-slim ships a `node` user; drop root before serving traffic.
 USER node
 EXPOSE 3000
 CMD ["node", "dist/index.js"]

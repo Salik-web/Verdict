@@ -40,10 +40,10 @@ jobs:
           --health-cmd "redis-cli ping"
           --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       # @geo/shared exports from ./dist, which is gitignored — so it does not
@@ -56,7 +56,11 @@ jobs:
       - run: pnpm --filter @geo/api lint
       # The API checkpoint test triggers the pipeline over internal HTTP, so the
       # Python service must be reachable. Boot it in the background first.
-      - uses: astral-sh/setup-uv@v5
+      # Pinned exactly: there is no `v10` major tag. v5's post-job step ran
+      # `uv cache prune --ci` by default and exited 2 after every real step
+      # passed; v9 changed prune-cache's default to false, and v10 runs on
+      # node24 rather than the deprecated node20.
+      - uses: astral-sh/setup-uv@v10.0.1
         with:
           python-version: "3.12"
       - name: start pipeline service
@@ -92,16 +96,20 @@ jobs:
           --health-cmd "redis-cli ping"
           --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       # Apply schema + seed via the TS migrator (the SQL in /db is the contract).
       - run: pnpm --filter @geo/api db:migrate
       - run: pnpm --filter @geo/api db:seed
-      - uses: astral-sh/setup-uv@v5
+      # Pinned exactly: there is no `v10` major tag. v5's post-job step ran
+      # `uv cache prune --ci` by default and exited 2 after every real step
+      # passed; v9 changed prune-cache's default to false, and v10 runs on
+      # node24 rather than the deprecated node20.
+      - uses: astral-sh/setup-uv@v10.0.1
         with:
           python-version: "3.12"
       - working-directory: services/pipeline
@@ -118,22 +126,26 @@ jobs:
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # gitleaks scans full history
       - name: gitleaks (secret scan)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITLEAKS_CONFIG: .gitleaks.toml
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       # Fail only on high/critical advisories — noise below that shouldn't block.
       - name: pnpm audit
         run: pnpm audit --audit-level high
-      - uses: astral-sh/setup-uv@v5
+      # Pinned exactly: there is no `v10` major tag. v5's post-job step ran
+      # `uv cache prune --ci` by default and exited 2 after every real step
+      # passed; v9 changed prune-cache's default to false, and v10 runs on
+      # node24 rather than the deprecated node20.
+      - uses: astral-sh/setup-uv@v10.0.1
         with:
           python-version: "3.12"
       - name: pip-audit (pipeline deps)
