@@ -41,7 +41,13 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      # v7, not v5: v5 auto-enabled dependency caching for any `packageManager`
+      # in package.json and shelled out to `pnpm --version` to do it — before
+      # `corepack enable` had run, so every job died with "Unable to locate
+      # executable file: pnpm" (actions/setup-node#1357, still open). v6.0.0
+      # limited that auto-detection to npm. corepack must stay AFTER this step:
+      # it ships with the Node that setup-node installs, not the runner's.
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: corepack enable
@@ -97,7 +103,10 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      # v7, not v5 — see the api job: v5's automatic `packageManager` caching
+      # ran `pnpm --version` before corepack had put pnpm on PATH. corepack
+      # must stay AFTER this step; it ships with the Node installed here.
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: corepack enable
@@ -133,7 +142,10 @@ jobs:
         uses: gitleaks/gitleaks-action@v3
         env:
           GITLEAKS_CONFIG: .gitleaks.toml
-      - uses: actions/setup-node@v5
+      # v7, not v5 — see the api job: v5's automatic `packageManager` caching
+      # ran `pnpm --version` before corepack had put pnpm on PATH. corepack
+      # must stay AFTER this step; it ships with the Node installed here.
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: corepack enable
