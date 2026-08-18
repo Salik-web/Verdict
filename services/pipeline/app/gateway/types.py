@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Typed boundary objects for the model gateway.
 
 These are the contract every caller and provider speaks. `task` is a plain
@@ -56,6 +58,21 @@ class ProviderResult(BaseModel):
     # for back-compat); `sources` carries url + publisher title.
     citations: list[str] = Field(default_factory=list)
     sources: list[Citation] = Field(default_factory=list)
+    # Why the provider stopped. Kept verbatim (provider-specific: Gemini's
+    # "STOP"/"MAX_TOKENS"/"SAFETY") purely so a short or odd answer is diagnosable
+    # after the fact instead of being indistinguishable from a complete one.
+    finish_reason: str | None = None
+    # True when the answer was cut short. A truncated answer is evidence of what
+    # WAS said, never evidence of what was not said.
+    truncated: bool = False
+    # How many BILLABLE grounded searches this call actually performed.
+    #
+    # Not always 1. Gemini 2.5 bills per grounded PROMPT, but Anthropic and
+    # OpenAI bill per SEARCH, and one request may run several (Claude's
+    # `max_uses`, reported back as usage.server_tool_use.web_search_requests).
+    # Pricing those at one flat fee per request would undercount every
+    # multi-search answer. 0 means "ungrounded, or the provider did not say".
+    grounded_units: int = 0
 
 
 class GatewayResponse(BaseModel):
@@ -71,3 +88,5 @@ class GatewayResponse(BaseModel):
     scenario: str | None = None
     citations: list[str] = Field(default_factory=list)
     sources: list[Citation] = Field(default_factory=list)
+    finish_reason: str | None = None
+    truncated: bool = False

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Monitor stage in isolation — pure, mock mode, no DB, no API keys.
 
 Uses the fixture scenario schedule [CW, CW, CW, CI, CI] over 2 prompts x 1 engine

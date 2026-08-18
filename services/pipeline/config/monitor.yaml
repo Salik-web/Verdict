@@ -21,6 +21,10 @@ default_category: "B2B SaaS product analytics"
 # label is derived from the model that actually answered (e.g. gemini/
 # gemini-2.5-flash in dev, mock/sonar in mock), so the DB never misattributes.
 # Hence a neutral slot name here rather than a provider name.
+# Each engine is independently enable/disable-able BY WHETHER ITS KEY IS PRESENT.
+# An engine whose provider key is missing is dropped before any call is made and
+# reported as unavailable, so a user holding only one key gets a working
+# one-engine scan rather than an error (see app/gateway/availability.py).
 engines:
   - name: primary
     gateway_task: measurement
@@ -33,3 +37,16 @@ engines:
       - competitor_wins
       - customer_invisible
       - customer_invisible
+  # Additional engines. Uncomment any you hold a key for — they cost nothing to
+  # leave enabled without one, because an engine with no key is skipped rather
+  # than failing the scan. Each ADDS (prompts x repeats) grounded calls, so
+  # enabling all four multiplies your per-scan spend by four.
+  #
+  # Only Gemini has been verified against a live API. See docs/ENGINES.md for
+  # per-engine cost, free-tier reality, and verification status.
+  # - name: perplexity
+  #   gateway_task: measurement_perplexity
+  # - name: openai
+  #   gateway_task: measurement_openai
+  # - name: anthropic
+  #   gateway_task: measurement_anthropic

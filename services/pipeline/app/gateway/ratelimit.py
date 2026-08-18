@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Per-provider rate limiting: a token bucket for the ceiling, plus optional
 hard SPACING between calls. In-memory for now, behind an interface so a
 Redis/distributed limiter can replace it later.

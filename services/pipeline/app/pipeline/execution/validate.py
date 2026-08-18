@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Output validation: enforce the verified-facts rule and sanitize HTML.
 
 HARD RULE: every claim ABOUT SOMEONE — the customer ('self') or a named rival
@@ -23,10 +25,18 @@ from app.pipeline.execution.contracts import (
     GeneratorContext,
     VerifiedFactRef,
 )
+from app.pipeline.execution.facts_gate import placeholder_violations
 from app.pipeline.execution.jsonld import validate_faqpage
 
 # Claims about a real party must be backed; `general` is not about anyone.
 _MUST_BE_VERIFIED = ("self", "competitor")
+
+# Stamped into every asset's metadata at generation. Bump it when a check is
+# added, so `revalidate.py` can tell an asset that PASSED this validator from one
+# that predates it — a passing record on an unchecked artifact is worse than no
+# record. History: absent = pre-validator; 2026-07-25 = JSON-LD structure;
+# 2026-07-28 = placeholder gate + subject-aware fact lookup.
+VALIDATOR_VERSION = "2026-07-28"
 
 
 def _describe(claim: Claim) -> str:
@@ -37,7 +47,10 @@ def _describe(claim: Claim) -> str:
 
 
 def _lookup(context: GeneratorContext, claim: Claim) -> VerifiedFactRef | None:
-    return context.fact(claim.fact_type, claim.key)
+    # Match the claim's subject first: a self fact and a competitor fact can share
+    # (fact_type, key), and picking the wrong one reported a correct claim as a
+    # subject mismatch.
+    return context.fact(claim.fact_type, claim.key, about=claim.about)
 
 
 def _validate_claims(draft: AssetDraft, context: GeneratorContext) -> list[str]:
@@ -74,6 +87,11 @@ def _validate_claims(draft: AssetDraft, context: GeneratorContext) -> list[str]:
 
 def finalize_asset(draft: AssetDraft, context: GeneratorContext) -> Asset:
     violations = _validate_claims(draft, context)
+
+    # An unfilled template is not a fact. The stage strips placeholder facts from
+    # the context before generation; this catches anything a generator produced on
+    # its own, so "⚠️ your real starting price" can never reach a customer's site.
+    violations.extend(placeholder_violations(draft))
 
     # Malformed structured data is a silent SEO failure (a dropped FAQ entry, an
     # invalid rich result) — reject it here instead of shipping it.

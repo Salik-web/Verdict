@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Share-of-voice computation.
 
 Smoothed across the repeated runs (never computed live). Definitions, per brand,
@@ -29,6 +31,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from app.pipeline.contracts import ParsedMention, ScanContext, SoVRecord
+from app.pipeline.monitor.entities import Resolution, normalize, resolve_entities
 
 EngineParse = tuple[str, ParsedMention]  # (engine, parsed answer)
 
@@ -40,42 +43,42 @@ class _BrandAgg:
 
 
 def make_brand_resolver(context: ScanContext):
-    """Map a brand string -> (competitor_id, is_self), case-insensitively."""
+    """Map a brand string -> (competitor_id, is_self).
+
+    Uses the same normalisation as entity resolution (see entities.normalize), so
+    a stored alias with a stray trailing space or odd casing still resolves to its
+    competitor row instead of silently becoming an untracked brand.
+    """
     lookup: dict[str, tuple[uuid.UUID | None, bool]] = {}
     for comp in context.competitors:
         for key in [comp.name, *comp.aliases]:
-            lookup[key.lower()] = (comp.id, comp.is_self)
+            lookup[normalize(key)] = (comp.id, comp.is_self)
     focal_keys = {
-        context.brand_name.lower(),
-        *(a.lower() for a in context.brand_aliases),
+        normalize(context.brand_name),
+        *(normalize(a) for a in context.brand_aliases),
     }
 
     def resolve(brand: str) -> tuple[uuid.UUID | None, bool]:
-        hit = lookup.get(brand.lower())
+        key = normalize(brand)
+        hit = lookup.get(key)
         if hit is not None:
             return hit
-        if brand.lower() in focal_keys:
+        if key in focal_keys:
             return (None, True)
         return (None, False)
 
     return resolve
 
 
-def make_canonicalizer(context: ScanContext):
-    """Map any brand string to its canonical display name, so an alias or a
-    case variant ("higgsfield") folds into the tracked entity's name and does not
-    spawn a duplicate SoV row. Unknown brands keep their surface form."""
-    canon: dict[str, str] = {}
-    for comp in context.competitors:
-        for key in [comp.name, *comp.aliases]:
-            canon[key.lower()] = comp.name
-    for key in [context.brand_name, *context.brand_aliases]:
-        canon[key.lower()] = context.brand_name
+def make_canonicalizer(context: ScanContext, surfaces: list[str] | None = None):
+    """Map any brand string to its canonical display name.
 
-    def canonical(brand: str) -> str:
-        return canon.get(brand.lower(), brand)
-
-    return canonical
+    Entity resolution needs the whole set of surface forms a scan saw, because
+    folding a product variant onto its parent is only allowed when the parent was
+    actually observed (see entities.py). Callers that have no such set get the
+    tracked-brand rules alone, which is the conservative subset.
+    """
+    return resolve_entities(context, list(surfaces or []))
 
 
 def _tracked_names(context: ScanContext) -> list[str]:
@@ -98,7 +101,7 @@ def _aggregate(
     engine: str,
     parses: list[ParsedMention],
     resolve,
-    canonical,
+    canonical: Resolution,
     tracked_names: list[str],
 ) -> list[SoVRecord]:
     observations = len(parses)
@@ -153,6 +156,15 @@ def _aggregate(
                 details={
                     "observations": observations,
                     "tracked": is_self or competitor_id is not None,
+                    # The surface forms folded into this row, when more than one
+                    # was seen. A merged number should be able to show its work —
+                    # "Higgsfield AI counted toward HiggsField" is a claim the
+                    # customer is entitled to check.
+                    **(
+                        {"merged_from": canonical.merged_from[brand]}
+                        if brand in canonical.merged_from
+                        else {}
+                    ),
                 },
             )
         )
@@ -163,7 +175,12 @@ def _aggregate(
 
 def compute_sov(context: ScanContext, parses: list[EngineParse]) -> list[SoVRecord]:
     resolve = make_brand_resolver(context)
-    canonical = make_canonicalizer(context)
+    # Resolve entities across the WHOLE scan, once: a per-engine map could fold
+    # "ChatGPT Plus" into "ChatGPT" for one engine and not another, and the
+    # cross-engine roll-up would then disagree with its own parts.
+    surfaces = [p.brand for _, p in parses if p.mentioned]
+    surfaces += [c.brand for _, p in parses for c in p.competitors]
+    canonical = make_canonicalizer(context, surfaces)
     tracked_names = _tracked_names(context)
 
     by_engine: dict[str, list[ParsedMention]] = defaultdict(list)

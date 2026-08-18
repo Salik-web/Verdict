@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Tolerant JSON extraction from model output.
 
 Every task whose output we parse asks the provider for JSON mode

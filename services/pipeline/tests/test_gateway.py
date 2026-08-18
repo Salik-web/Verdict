@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Gateway checkpoint tests.
 
 With NO API keys (mock mode, the default), a sample call for each task returns

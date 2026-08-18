@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 // Thin fetch wrapper around the real TS API. Every call sends the httpOnly
 // session cookie (credentials: "include") and NEVER swallows errors — a non-2xx
 // returns { ok:false, status, data } so screens can print the status + body.

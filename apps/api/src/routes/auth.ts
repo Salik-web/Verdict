@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import {

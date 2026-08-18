@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Provider registry — zero-touch adapter registration.
 
 Adding an engine is exactly: drop a file in this package, decorate its class with

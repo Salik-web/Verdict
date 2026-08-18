@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Gemini adapter: grounded request shape + groundingMetadata -> cited_urls.
 
 The fixture response below is the shape documented at

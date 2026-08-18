@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Opt-in live smoke test: real network fetch of example.com.
 
 Skipped unless RUN_LIVE_SCRAPE=1 so the suite stays green offline/CI. The LLM

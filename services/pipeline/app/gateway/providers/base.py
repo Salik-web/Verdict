@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Provider abstraction.
 
 A provider turns (target, messages, params) into raw text + token usage. Pricing,

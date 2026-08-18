@@ -62,7 +62,8 @@ Copy `.env.example` to `.env.local`:
 ## Click-through order (the full loop)
 
 **Fastest path — log in as the pre-populated demo account:**
-`owner@acme.example.com` / `demo-password-123` (seeded, local dev only). Its brand
+`owner@acme.example.com`, with the password `pnpm --filter @geo/api db:seed`
+printed when you ran it (generated fresh each time, never committed). Its brand
 is `Acme Analytics`, which matches the mock engine's answers, so the self row
 lights up.
 

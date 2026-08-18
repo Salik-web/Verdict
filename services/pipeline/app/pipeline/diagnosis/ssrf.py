@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """SSRF guard for the scraper.
 
 Before ANY outbound fetch (and on every redirect hop) the target URL must pass

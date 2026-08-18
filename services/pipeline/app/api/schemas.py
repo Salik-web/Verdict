@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Pydantic models for HTTP boundaries.
 
 The HealthResponse mirrors packages/shared/schemas/health.schema.json and the

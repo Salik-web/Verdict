@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Parser (LLM-as-judge): extract a structured ParsedMention from an engine
 answer, via the gateway 'processing' task. Validated into a typed Pydantic model
 at the boundary.

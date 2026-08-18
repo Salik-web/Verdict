@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Prompt auto-generation: given a category, produce ~25-30 high-intent buyer
 prompts via the gateway 'generation' task. Template lives in config/prompts.
 

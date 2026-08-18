@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Data access for the tenant root (accounts)."""
 
 from __future__ import annotations

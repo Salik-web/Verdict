@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Loaders for the diagnosis data-driven config: ai_bots.yaml, gap_taxonomy.yaml,
 diagnosis.yaml. Nothing here is inline in logic (principle 3)."""
 

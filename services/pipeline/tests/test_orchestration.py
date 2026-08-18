@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Orchestration: the pipeline chain's stages, bookkeeping, and failure mode.
 
 Tasks are executed eagerly with `.apply()` so no broker is needed — the chain's
@@ -12,16 +14,17 @@ from __future__ import annotations
 
 import uuid
 from contextlib import suppress
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.exc import OperationalError
 
 from app.celery_app import celery_app
 from app.db.base import SessionLocal
+from app.db.models import Asset as AssetRow
 from app.db.models import Scan
 from app.db.repositories import (
     AccountRepository,
-    AssetRepository,
     GapRepository,
     JobRepository,
     ScanRepository,
@@ -65,6 +68,7 @@ def test_chain_stages_run_record_jobs_and_complete_the_scan():
         account.plan = "enterprise"  # quota headroom on an accumulated dev DB
         s.commit()
 
+    started = datetime.now(UTC)
     scan_id = _new_scan(DEMO_ACCOUNT_ID)
     try:
         # The chain, run stage by stage (monitor is chained -> finalize=False).
@@ -92,15 +96,30 @@ def test_chain_stages_run_record_jobs_and_complete_the_scan():
         assert {j.type for j in jobs} == {"monitor", "diagnosis", "execution"}
         assert all(j.status == "succeeded" for j in jobs)
 
-        # Diagnosis produced gaps (offline, via the mock-mode fixture site) and
-        # execution shipped the top fix off them.
+        # Diagnosis produced gaps (offline, via the mock-mode fixture site)...
         assert gaps, "diagnosis should produce gaps for the demo account"
-        asset_id = scan.stats["stages"]["execution"].get("asset_id")
-        assert asset_id, "execution should ship an asset"
+
+        # ...and execution planned them. No generators are registered in this
+        # distribution, so the stage reports what it could not build and the
+        # CHAIN STILL COMPLETES — that is the property under test. A crash here
+        # would fail the scan and abort the chain instead.
+        execution = scan.stats["stages"]["execution"]
+        assert execution["skipped_generation"] is True
+        assert execution["backlog"], "planning must still produce a ranked backlog"
+        assert execution["unsupported_fix_types"]
+        assert "asset_id" not in execution
+
+        # Nothing was persisted, because nothing was generated.
         with SessionLocal() as s:
-            asset = AssetRepository(s).get(DEMO_ACCOUNT_ID, asset_id)
-        assert asset is not None
-        assert asset.target_prompt_ids, "asset must be tagged for verification"
+            made = (
+                s.query(AssetRow)
+                .filter(
+                    AssetRow.account_id == DEMO_ACCOUNT_ID,
+                    AssetRow.created_at >= started,
+                )
+                .count()
+            )
+        assert made == 0, "no asset should be created by a run with no generators"
     finally:
         with SessionLocal() as s:
             AccountRepository(s).get_by_id(DEMO_ACCOUNT_ID).plan = original_plan

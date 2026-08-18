@@ -12,3 +12,15 @@ jitter_minutes: 720 # 12h spread
 
 # How often the beat wakes to enqueue due scans.
 tick_minutes: 15
+
+# ── Abandoned-scan sweep ────────────────────────────────────────────────
+# The soft task time limit handles a task that is alive but slow. It cannot
+# handle a worker that stops existing (OOM kill, container eviction, the hard
+# time limit): nothing raises, no handler runs, and the scan sits at `running`
+# forever. This sweep marks those failed so the row reflects reality.
+#
+# Keep stale_after_minutes ABOVE the hard task limit (celery_task_time_limit_s,
+# default 660s = 11 min) with margin — sweeping too eagerly kills legitimate
+# slow scans, and on a free tier slow is normal (deliberate call spacing).
+stale_after_minutes: 30
+stale_sweep_every_minutes: 10

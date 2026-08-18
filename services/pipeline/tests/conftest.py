@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Shared test setup.
 
 Sets the required secret before app modules import their settings. DATABASE_URL

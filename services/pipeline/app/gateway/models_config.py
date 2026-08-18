@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Typed loader for config/models.yaml.
 
 The YAML is the single source of truth for task→model mapping, providers,
@@ -39,6 +41,19 @@ class TaskTarget(BaseModel):
     # Gemini-3-only and in preview: ai.google.dev/gemini-api/docs/structured-output).
     # Parsing stays fence-tolerant regardless, since providers may ignore this.
     json_output: bool = False
+    # Gemini 2.5+ "thinking" budget, in tokens; 0 disables it. Thinking tokens are
+    # billed as output AND count against maxOutputTokens, so a reasoning model can
+    # spend its whole budget thinking and return a candidate with NO parts — which
+    # is exactly how two measurement answers came back empty and were stored as
+    # real observations. Extraction needs no reasoning, so processing sets 0.
+    # None = leave the provider's default alone.
+    thinking_budget: int | None = None
+    # Cap on billable searches per grounded request, for providers that bill per
+    # SEARCH rather than per prompt (Anthropic's `max_uses`, OpenAI's tool
+    # limit). One request can otherwise run many searches, and at $10/1,000 each
+    # an uncapped comparative query is the difference between $0.01 and $0.10.
+    # None leaves the provider's own default in place.
+    max_searches: int | None = None
 
 
 class ProviderConfig(BaseModel):
@@ -135,6 +150,8 @@ class ModelsConfig(BaseModel):
             default_scenario=target.default_scenario,
             grounding=target.grounding,
             json_output=target.json_output,
+            thinking_budget=target.thinking_budget,
+            max_searches=target.max_searches,
             price=price,
         )
 
@@ -148,6 +165,8 @@ class ResolvedTarget(BaseModel):
     default_scenario: str | None
     grounding: bool = False
     json_output: bool = False
+    thinking_budget: int | None = None
+    max_searches: int | None = None
     price: Price | None
 
 

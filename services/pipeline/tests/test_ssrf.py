@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """SSRF guard: reject internal/private/metadata targets, allow public ones."""
 
 from __future__ import annotations

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Loaders for planner.yaml and execution.yaml (data-driven, not inline)."""
 
 from __future__ import annotations
@@ -25,6 +27,12 @@ class PlannerConfig(BaseModel):
     weights: Factors
     default_factors: Factors
     gaps: dict[str, Factors]
+    # Diagnosis-side DETECTION confidence floor (distinct from the planner's own
+    # `confidence` prior, which is about whether a fix works). A gap detected by
+    # weak evidence — e.g. "the homepage links to no comparison page", which says
+    # nothing about the rest of the site — is stored for the report but must never
+    # be RANKED, so it cannot surface as the top fix and ship an asset.
+    min_detection_confidence: float = 0.5
 
     def factors_for(self, gap_type: str) -> Factors:
         return self.gaps.get(gap_type, self.default_factors)
@@ -33,7 +41,6 @@ class PlannerConfig(BaseModel):
 class ExecutionConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     artifacts_dir: str = "artifacts"
-    asset_types: dict[str, str] = {}
 
 
 def _load(name: str) -> dict:

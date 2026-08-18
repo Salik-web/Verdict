@@ -1,141 +1,168 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
+/**
+ * Cost ledger.
+ *
+ * The number shown is MODELLED, not billed: pricing comes from
+ * config/models.yaml, so a call served by a free tier still shows its list
+ * price. That makes unit economics meaningful ("what would this cost at scale?")
+ * but it is not your invoice, and the page says so rather than letting someone
+ * quote it as spend.
+ */
 "use client";
 
 import { useEffect, useState } from "react";
-import { type ApiResult } from "@/lib/api";
-import { ErrorBox, Json, Section } from "@/lib/ui";
+import {
+  Badge,
+  Card,
+  Cell,
+  Empty,
+  ErrorBox,
+  Loading,
+  PageHeader,
+  RawJson,
+  Row,
+  Stat,
+  Table,
+  money,
+} from "../../components/ui";
 
-type ModelRow = {
-  provider: string;
-  model: string;
+type Summary = {
   calls: number;
-  cost_usd: number;
-  total_tokens: number;
-};
-type Costs = {
-  account_id: string;
-  calls: number;
-  cost_usd: number;
-  total_tokens: number;
-  mock_calls: number;
   real_calls: number;
-  by_model: ModelRow[];
+  mock_calls: number;
+  cost_usd?: number | string;
+  by_model?: Record<string, { calls: number; cost_usd: number | string }>;
+  by_operation?: Record<string, { calls: number; cost_usd: number | string }>;
+  [k: string]: unknown;
 };
-
-// This screen hits the SAME-ORIGIN Next proxy (/api/costs), not the API directly.
-async function fetchCosts(): Promise<ApiResult<Costs>> {
-  let res: Response;
-  try {
-    res = await fetch("/api/costs?days=30");
-  } catch (e) {
-    return { ok: false, status: 0, data: null, error: String(e) };
-  }
-  const text = await res.text();
-  let data: unknown = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-  if (!res.ok)
-    return {
-      ok: false,
-      status: res.status,
-      data: data as Costs,
-      error: typeof data === "string" ? data : JSON.stringify(data, null, 2),
-    };
-  return { ok: true, status: res.status, data: data as Costs, error: null };
-}
 
 export default function CostsPage() {
-  const [costs, setCosts] = useState<ApiResult<Costs> | null>(null);
+  const [data, setData] = useState<Summary | null>(null);
+  const [err, setErr] = useState<{ status: number; error: string } | null>(null);
 
-  async function load() {
-    setCosts(await fetchCosts());
-  }
   useEffect(() => {
-    void load();
+    (async () => {
+      try {
+        // Proxied server-side: the pipeline's cost endpoint needs the internal
+        // shared secret, which must never reach the browser.
+        const res = await fetch("/api/costs?days=30");
+        const text = await res.text();
+        let parsed: unknown = null;
+        try {
+          parsed = text ? JSON.parse(text) : null;
+        } catch {
+          parsed = text;
+        }
+        if (!res.ok) {
+          setErr({
+            status: res.status,
+            error:
+              typeof parsed === "string"
+                ? parsed
+                : JSON.stringify(parsed, null, 2),
+          });
+        } else setData(parsed as Summary);
+      } catch (e) {
+        setErr({ status: 0, error: String(e) });
+      }
+    })();
   }, []);
 
-  const c = costs?.ok ? costs.data : null;
+  if (err)
+    return (
+      <>
+        <PageHeader title="Costs" />
+        <ErrorBox
+          status={err.status}
+          error={err.error}
+          context="Could not load the cost ledger"
+        />
+      </>
+    );
+  if (!data) return <Loading what="costs" />;
+
+  const byOp = data.by_operation ?? {};
+  const byModel = data.by_model ?? {};
 
   return (
-    <div>
-      <h1 className="mb-4 text-xl font-bold">8. Costs</h1>
-      <Section title="LLM cost roll-up — GET /internal/costs (via Next proxy)">
-        <p className="mb-2 text-xs text-gray-600">
-          Shared-secret guarded on the Python pipeline, so this goes through a
-          server-side Next route (<code>/api/costs</code>) that holds the secret
-          and resolves your account from the session.
-        </p>
-        <button
-          onClick={load}
-          className="mb-2 border border-gray-500 bg-gray-200 px-2 py-1 text-sm"
-        >
-          Refresh
-        </button>
-        <ErrorBox result={costs} />
-        {c && (
-          <>
-            <table className="mb-3 w-auto">
-              <tbody>
-                <tr>
-                  <th>total cost (USD)</th>
-                  <td>{c.cost_usd}</td>
-                </tr>
-                <tr>
-                  <th>total calls</th>
-                  <td>{c.calls}</td>
-                </tr>
-                <tr>
-                  <th>mock calls</th>
-                  <td>{c.mock_calls}</td>
-                </tr>
-                <tr>
-                  <th>real calls</th>
-                  <td className={c.real_calls === 0 ? "" : "bg-red-100"}>
-                    {c.real_calls}
-                  </td>
-                </tr>
-                <tr>
-                  <th>total tokens</th>
-                  <td>{c.total_tokens}</td>
-                </tr>
-                <tr>
-                  <th>100% mock?</th>
-                  <td>
-                    {c.calls > 0 && c.real_calls === 0 ? "yes ✓" : "no / n/a"}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+    <>
+      <PageHeader
+        title="Costs"
+        description="Every model call this account issued in the last 30 days."
+      />
 
-            <h3 className="mb-1 text-sm font-bold">Per model</h3>
-            <table className="mb-2 w-full">
-              <thead>
-                <tr>
-                  <th>provider</th>
-                  <th>model</th>
-                  <th>calls</th>
-                  <th>cost (USD)</th>
-                  <th>tokens</th>
-                </tr>
-              </thead>
-              <tbody>
-                {c.by_model.map((m, i) => (
-                  <tr key={`${m.provider}-${m.model}-${i}`}>
-                    <td>{m.provider}</td>
-                    <td>{m.model}</td>
-                    <td>{m.calls}</td>
-                    <td>{m.cost_usd}</td>
-                    <td>{m.total_tokens}</td>
-                  </tr>
+      <div className="mb-4 rounded-md border border-gray-300 bg-gray-100 p-3 text-xs text-gray-700">
+        <strong>Modelled, not billed.</strong> Prices come from
+        <code className="mx-1 rounded bg-white px-1">config/models.yaml</code>,
+        so a call served by a free tier still shows its list price. Useful for
+        unit economics; not your invoice.
+      </div>
+
+      {data.calls === 0 ? (
+        <Empty title="No calls logged yet">
+          Run a scan and every model call will appear here — including cache
+          hits (flagged, zero cost) and failures.
+        </Empty>
+      ) : (
+        <>
+          <div className="mb-6 grid gap-3 sm:grid-cols-4">
+            <Stat label="Calls" value={data.calls} />
+            <Stat
+              label="Real calls"
+              value={data.real_calls}
+              hint={`${data.mock_calls} mock`}
+            />
+            <Stat label="Modelled cost" value={money(data.cost_usd as number, 4)} />
+            <Stat
+              label="Per scan"
+              value={
+                data.calls > 0
+                  ? money(Number(data.cost_usd ?? 0) / Math.max(1, data.calls), 5)
+                  : "—"
+              }
+              hint="per call average"
+            />
+          </div>
+
+          {Object.keys(byOp).length > 0 && (
+            <Card title="By operation" className="mb-4">
+              <Table head={["Operation", "Calls", "Modelled cost"]}>
+                {Object.entries(byOp).map(([op, v]) => (
+                  <Row key={op}>
+                    <Cell className="font-mono text-sm">{op}</Cell>
+                    <Cell className="tabular-nums">{v.calls}</Cell>
+                    <Cell className="tabular-nums">{money(v.cost_usd)}</Cell>
+                  </Row>
                 ))}
-              </tbody>
-            </table>
-          </>
-        )}
-        <Json data={costs?.data} />
-      </Section>
-    </div>
+              </Table>
+            </Card>
+          )}
+
+          {Object.keys(byModel).length > 0 && (
+            <Card title="By model">
+              <Table head={["Model", "Calls", "Modelled cost"]}>
+                {Object.entries(byModel).map(([model, v]) => (
+                  <Row key={model}>
+                    <Cell className="font-mono text-sm">
+                      {model}
+                      {model.startsWith("mock/") && (
+                        <span className="ml-2">
+                          <Badge tone="neutral">simulated</Badge>
+                        </span>
+                      )}
+                    </Cell>
+                    <Cell className="tabular-nums">{v.calls}</Cell>
+                    <Cell className="tabular-nums">{money(v.cost_usd)}</Cell>
+                  </Row>
+                ))}
+              </Table>
+            </Card>
+          )}
+
+          <RawJson data={data} label="raw cost JSON" />
+        </>
+      )}
+    </>
   );
 }

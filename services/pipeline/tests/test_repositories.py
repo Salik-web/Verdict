@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Integration test: the pipeline reads the seeded demo account via repositories.
 
 Requires the local DB to be migrated and seeded (see services/pipeline/README).

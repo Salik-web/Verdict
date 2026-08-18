@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Typed contracts for the Monitor stage.
 
 These Pydantic models are the stage's interface: `ScanContext` in, `MonitorOutput`
@@ -125,8 +127,30 @@ class SoVRecord(BaseModel):
     details: dict = Field(default_factory=dict)
 
 
+class FailedObservation(BaseModel):
+    """A (prompt, engine, run) we asked for but never got a usable answer to.
+
+    The distinction this preserves is the same one diagnosis draws between
+    confirmed_absent and check_failed: an answer we never received is NOT an
+    answer in which the brand was absent. A failed observation is dropped from the
+    denominator entirely — counting it as a measured miss understated every
+    mention_rate — and recorded here so the loss is visible rather than silent.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    prompt_id: uuid.UUID
+    engine: str
+    run: int
+    stage: str  # "measurement" | "parse"
+    reason: str
+    # Provider-reported stop reason where there is one (Gemini's MAX_TOKENS /
+    # SAFETY / RECITATION), so "we got nothing" is diagnosable after the fact.
+    finish_reason: str | None = None
+
+
 class MonitorOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     scan_id: uuid.UUID
     mentions: list[MentionRecord]
     share_of_voice: list[SoVRecord]
+    failed_observations: list[FailedObservation] = Field(default_factory=list)

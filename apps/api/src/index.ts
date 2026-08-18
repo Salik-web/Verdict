@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 import { loadConfig } from "./config.js";
 import { initSentry } from "./observability.js";
 import { buildServer } from "./server.js";

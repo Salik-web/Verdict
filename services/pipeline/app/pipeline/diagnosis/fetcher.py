@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Fetch layer for the scraper.
 
 `Fetcher` is the interface; `HttpxFetcher` is the httpx implementation with the
@@ -28,6 +30,13 @@ class FetchResult(BaseModel):
     headers: dict[str, str] = Field(default_factory=dict)
     text: str = ""
     content_type: str | None = None
+    # True when `text` is only the first max_bytes of the response. Silence here
+    # was a real defect: a 2.9 MB page was clipped at the 2 MB cap and every
+    # "not found on this page" conclusion was drawn from 69% of the document with
+    # nothing recording that fact.
+    truncated: bool = False
+    # Full size of the response body, before any clipping.
+    content_bytes: int = 0
 
 
 class FetchError(RuntimeError):
@@ -63,10 +72,10 @@ class HttpxFetcher(Fetcher):
                 continue
 
             text = resp.text
-            if len(text.encode("utf-8", "ignore")) > self.cfg.max_bytes:
-                text = text.encode("utf-8", "ignore")[: self.cfg.max_bytes].decode(
-                    "utf-8", "ignore"
-                )
+            raw = text.encode("utf-8", "ignore")
+            truncated = len(raw) > self.cfg.max_bytes
+            if truncated:
+                text = raw[: self.cfg.max_bytes].decode("utf-8", "ignore")
             return FetchResult(
                 url=url,
                 final_url=str(resp.url),
@@ -75,6 +84,8 @@ class HttpxFetcher(Fetcher):
                 headers={k.lower(): v for k, v in resp.headers.items()},
                 text=text,
                 content_type=resp.headers.get("content-type"),
+                truncated=truncated,
+                content_bytes=len(raw),
             )
         raise FetchError(f"too many redirects for {url}")
 
@@ -100,9 +111,9 @@ class FixtureFetcher(Fetcher):
     need real HTTP) run end-to-end offline and deterministically — no keys, no
     network, no dependence on the account's domain actually resolving.
 
-    Path-based: `/robots.txt` -> robots.txt fixture, `/` -> home.html, anything
-    else (llms.txt, competitor pages) -> 404, which is what drives the
-    missing_llms_txt gap.
+    Path-based: `/robots.txt` -> robots.txt fixture, `/sitemap.xml` ->
+    sitemap.xml fixture, `/` -> home.html, anything else (llms.txt, competitor
+    pages) -> 404, which is what drives the missing_llms_txt gap.
     """
 
     def __init__(self, fixtures_dir: Path) -> None:
@@ -119,6 +130,9 @@ class FixtureFetcher(Fetcher):
         if path.rstrip("/") == "/robots.txt".rstrip("/") or path == "/robots.txt":
             body = self._read("robots.txt")
             content_type = "text/plain; charset=utf-8"
+        elif path == "/sitemap.xml":
+            body = self._read("sitemap.xml")
+            content_type = "application/xml"
         elif path in ("", "/"):
             body = self._read("home.html")
         else:

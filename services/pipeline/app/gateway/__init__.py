@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Model gateway — the single module that wraps ALL model calls.
 
 Everything downstream (measurement, processing, generation) goes through

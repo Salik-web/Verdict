@@ -37,15 +37,95 @@ tasks:
       model: sonar
       fixture_dir: measurement
       default_scenario: competitor_wins
+  # A SECOND measurement engine, selected per-engine in config/monitor.yaml.
+  # Perplexity Sonar is grounded by default — there is no ungrounded mode to get
+  # wrong — and it returns `search_results` with publisher titles, which is what
+  # makes third-party-presence checking possible without extra HTTP.
+  measurement_perplexity:
+    prod:
+      provider: perplexity
+      model: sonar
+      grounding: true
+    dev:
+      provider: perplexity
+      model: sonar
+      grounding: true
+    mock:
+      provider: mock
+      model: sonar
+      fixture_dir: measurement
+      default_scenario: competitor_wins
+
+  # OpenAI, GROUNDED via the Responses API + hosted web_search tool. Note the
+  # provider is `openai_responses`, not `openai`: grounded OpenAI is a different
+  # ENDPOINT, not a flag. Ungrounded OpenAI is deliberately not offered as a
+  # measurement engine — it measures training recall and cites nothing.
+  measurement_openai:
+    prod:
+      provider: openai_responses
+      model: gpt-4.1
+      grounding: true
+    dev:
+      provider: openai_responses
+      model: gpt-4.1-mini
+      grounding: true
+    mock:
+      provider: mock
+      model: sonar
+      fixture_dir: measurement
+      default_scenario: competitor_wins
+
+  # Anthropic, GROUNDED via the Messages API web_search tool. Billed per SEARCH,
+  # and one request may run several, so max_searches caps the spend per call.
+  measurement_anthropic:
+    prod:
+      provider: anthropic
+      model: claude-sonnet-5
+      grounding: true
+      max_searches: 5
+    dev:
+      provider: anthropic
+      model: claude-haiku-4-5-20251001
+      grounding: true
+      max_searches: 3
+    mock:
+      provider: mock
+      model: sonar
+      fixture_dir: measurement
+      default_scenario: competitor_wins
+
   processing: # cheap, high-volume parsing/extraction
     prod:
       provider: deepseek
       model: deepseek-v4-flash
       json_output: true
     dev:
-      provider: groq
-      model: llama-3.1-8b-instant
+      # WAS groq/llama-3.1-8b-instant. Measured on 10 stored answers from scan
+      # 4ca73df6: llama-8b recalled ~40% of the brands the engines actually named
+      # and returned NOTHING from one 2,968-character answer — share of voice was
+      # being computed on under half the market. Extraction is a reading-
+      # comprehension task, and an 8B model is not good enough at it.
+      #
+      # Cost is not the constraint: measurement is 99.8% of a scan's spend
+      # ($0.3627 of $0.3634) because grounded requests are billed flat at $0.035.
+      # Even a 100x more expensive parser moves a scan from $0.363 to ~$0.43.
+      # thinking_budget: 0 — extraction needs no reasoning, and thinking tokens are
+      # what make Gemini return empty candidates (see providers/gemini.py).
+      #
+      # Measured on the same 8 non-empty stored answers (129 brand-mentions):
+      #   groq/llama-3.1-8b-instant   41/129 =  31.8%   <- was shipping
+      #   gemini/gemini-3.1-flash-lite 125/129 = 96.9%
+      #
+      # flash-LITE, not flash: gemini-2.5-flash's free tier is capped at 20
+      # requests/DAY/project/model, and measurement alone burns 10 of those per
+      # scan — putting processing on the same model would cap the product at one
+      # scan a day. flash-lite is a different quota bucket AND scored 96.9%, so
+      # there is nothing to trade off. It also accepts thinkingBudget (3.5-lite
+      # only accepts thinkingLevel), which keeps the knob below honest.
+      provider: gemini
+      model: gemini-3.1-flash-lite
       json_output: true # we parse this into ParsedMention
+      thinking_budget: 0
     mock:
       provider: mock
       model: deepseek-v4-flash
@@ -109,6 +189,18 @@ providers:
     # 429s; check your own dashboard for the real numbers.
     rpm: 10
     min_interval_s: 7.0
+  openai_responses:
+    type: openai_responses
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+    rpm: 60
+    min_interval_s: 1.0
+  anthropic:
+    type: anthropic
+    base_url: https://api.anthropic.com/v1
+    api_key_env: ANTHROPIC_API_KEY
+    rpm: 50
+    min_interval_s: 1.2
   deepseek:
     type: openai_compatible
     base_url: https://api.deepseek.com
@@ -136,9 +228,25 @@ providers:
 
 # ── Pricing (USD per 1,000,000 tokens) ───────────────────────────────────
 pricing:
+  # docs.perplexity.ai/getting-started/pricing (checked 2026-08-15):
+  #   sonar = $1/1M input, $1/1M output, PLUS a per-request fee that varies with
+  #   search context size — $5 / $8 / $12 per 1,000 requests for low / medium /
+  #   high. Web search is bundled into that request fee; there is no separate
+  #   per-search-query charge for plain `sonar` (Deep Research is the exception,
+  #   at $5/1,000 searches).
+  #
+  # This is materially cheaper than Gemini 2.5's $35/1,000 grounded prompts:
+  # roughly 3-7x less per grounded request, depending on context size.
+  #
+  # CAVEAT, and it is worth one live call to close: we do not currently send
+  # `web_search_options.search_context_size`, so the effective tier is
+  # Perplexity's default rather than one we chose. The response echoes
+  # `search_context_size` back in `usage`, so a single real request confirms
+  # which tier to price at. Priced at MEDIUM here as the middle estimate.
   "perplexity/sonar":
     input: 1.00
     output: 1.00
+    grounded_request: 0.008
   "deepseek/deepseek-v4-flash":
     input: 0.07
     output: 0.27
@@ -177,6 +285,32 @@ pricing:
   "openrouter/openai/gpt-oss-20b:free":
     input: 0.03
     output: 0.13
+  # OpenAI hosted web_search: $10.00 / 1,000 CALLS, and search content is billed
+  # at the model's standard INPUT rate (developers.openai.com/api/docs/pricing,
+  # checked 2026-08-16). Exception noted there: gpt-4o-mini / gpt-4.1-mini on the
+  # non-preview tool bill search content as a flat 8,000 input tokens per call.
+  # Token rates below are the published list rates for these models.
+  "openai_responses/gpt-4.1":
+    input: 2.00
+    output: 8.00
+    grounded_request: 0.01
+  "openai_responses/gpt-4.1-mini":
+    input: 0.40
+    output: 1.60
+    grounded_request: 0.01
+  # Anthropic web search: $10 per 1,000 SEARCHES plus standard token costs, and
+  # search results count as input tokens
+  # (platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool,
+  # checked 2026-08-16). Billed PER SEARCH, not per request — one request can run
+  # several, which is why grounded_units exists. A failed search is not billed.
+  "anthropic/claude-sonnet-5":
+    input: 3.00
+    output: 15.00
+    grounded_request: 0.01
+  "anthropic/claude-haiku-4-5-20251001":
+    input: 1.00
+    output: 5.00
+    grounded_request: 0.01
   # Gemini 2.5 Flash: $0.30/1M in, $2.50/1M out (output includes thinking tokens).
   # grounded_request = $35 / 1,000 grounded prompts = $0.035 each, charged ONLY on
   # grounded calls (measurement). The first 1,500 grounded prompts/day are free,
@@ -186,6 +320,12 @@ pricing:
     input: 0.30
     output: 2.50
     grounded_request: 0.035
+  # Gemini 3.1 Flash-Lite (ai.google.dev/gemini-api/docs/pricing, checked
+  # 2026-07-28): $0.25/1M in, $1.50/1M out, text. Ungrounded — the parser reads an
+  # answer we already paid to fetch, so no grounded_request fee applies.
+  "gemini/gemini-3.1-flash-lite":
+    input: 0.25
+    output: 1.50
 
 # ── Cross-cutting defaults ───────────────────────────────────────────────
 # Retries apply to 429 / 5xx / transport errors (mock never reaches the network).

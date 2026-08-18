@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Settings for the pipeline service.
 
 Validated once at import via pydantic-settings. Reads from the process
@@ -54,6 +56,15 @@ class Settings(BaseSettings):
     # whole pipeline with NO API keys. dev = free providers, prod = paid models.
     # Switching modes is this one env var — no code change.
     gateway_mode: Literal["mock", "dev", "prod"] = "mock"
+
+    # WHERE provider API keys come from. Orthogonal to gateway_mode, which picks
+    # WHICH model answers.
+    #   self_hosted — one set of keys from this environment / .env (BYOK; the
+    #                 default, and what an open-source install runs).
+    #   managed     — keys belong to a tenant and are fetched per account by a
+    #                 resolver the hosting application installs at start-up.
+    # See app/gateway/credentials.py. Same code either way.
+    deployment_mode: Literal["self_hosted", "managed"] = "self_hosted"
 
     # Model provider keys — BLANK for now. Read only by non-mock modes; the key
     # for each provider is named in config/models.yaml (api_key_env).

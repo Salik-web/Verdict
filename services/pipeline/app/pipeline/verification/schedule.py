@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Scheduling for the Verification stage.
 
 Verification is deliberately NOT chained onto a scan: a shipped fix needs time to

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """robots.txt crawler audit.
 
 Fetches robots.txt and, for every AI bot in config/ai_bots.yaml, decides whether
@@ -14,6 +16,7 @@ from urllib.robotparser import RobotFileParser
 from app.pipeline.diagnosis.config import get_bot_registry
 from app.pipeline.diagnosis.contracts import BotAudit, BotVerdict, Finding
 from app.pipeline.diagnosis.fetcher import Fetcher
+from app.pipeline.diagnosis.probe import probe
 
 
 def robots_url_for(target_url: str) -> str:
@@ -27,14 +30,20 @@ def _parser_for(robots_text: str) -> RobotFileParser:
     return rp
 
 
-def audit_robots(fetcher: Fetcher, target_url: str) -> tuple[BotAudit, list[Finding]]:
+def audit_robots(
+    fetcher: Fetcher, target_url: str
+) -> tuple[BotAudit, list[Finding], str]:
+    """Returns (audit, findings, robots_text). The raw text is returned so the
+    caller can read the `Sitemap:` directive without fetching robots.txt twice."""
     registry = get_bot_registry()
-    result = fetcher.get(robots_url_for(target_url))
-    robots_found = result.ok and bool(result.text.strip())
+    p = probe(fetcher, robots_url_for(target_url))
+    result = p.result
+    robots_text = (result.text if result is not None else "") or ""
+    robots_found = p.present and bool(robots_text.strip())
     findings: list[Finding] = []
 
     # No robots.txt => nothing is disallowed; every bot may crawl.
-    rp = _parser_for(result.text) if robots_found else None
+    rp = _parser_for(robots_text) if robots_found else None
 
     def allowed(token: str) -> bool:
         return True if rp is None else rp.can_fetch(token, "/")
@@ -110,4 +119,4 @@ def audit_robots(fetcher: Fetcher, target_url: str) -> tuple[BotAudit, list[Find
         blocked_search_bots=blocked_search,
         traps_triggered=traps_triggered,
     )
-    return audit, findings
+    return audit, findings, robots_text

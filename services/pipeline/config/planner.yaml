@@ -19,6 +19,13 @@ default_factors:
 #   control    — how much WE can fix it on the customer's site (vs third parties)
 #   confidence — how sure we are the fix helps
 gaps:
+  # Maxed on every factor so it always sorts first: if the customer is telling
+  # crawlers not to index them, no other recommendation matters until it's gone.
+  # It's also entirely within their control and certain to help.
+  page_noindex:
+    impact: 1.00
+    control: 1.00
+    confidence: 1.00
   blocked_crawler:
     impact: 0.95
     control: 1.00
@@ -47,3 +54,7 @@ gaps:
     impact: 0.50
     control: 1.00
     confidence: 0.90
+  stale_content:
+    impact: 0.40
+    control: 0.95 # the customer owns their templates
+    confidence: 0.55 # dates help engines judge recency, but it's not decisive

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Shared HTTP plumbing for real (non-mock) providers: one retry/backoff policy.
 
 Free tiers are the design point here:
@@ -14,32 +16,19 @@ Free tiers are the design point here:
 
 from __future__ import annotations
 
-import os
 import time
 from typing import Any
 
 import httpx
 
-from app.core.config import get_settings
+from app.gateway.credentials import resolve_api_key as _resolve_api_key
 from app.gateway.models_config import RetryConfig
 
-
-def resolve_api_key(env_name: str) -> str | None:
-    """Find a provider's API key.
-
-    Checks the process environment first, then falls back to Settings. The
-    fallback is the important half: pydantic-settings reads services/pipeline/.env
-    into the Settings OBJECT, it does not export those values into os.environ — so
-    a key that lives only in .env is invisible to `os.environ.get()`. Reading
-    os.environ alone means "the key is in .env" and "the provider can see the key"
-    are different things, which fails at the worst possible moment (first real call).
-    """
-    value = os.environ.get(env_name)
-    if value:
-        return value
-    # Settings field names are the lowercase env var names (GOOGLE_API_KEY ->
-    # google_api_key), so this stays in sync with .env.example automatically.
-    return getattr(get_settings(), env_name.lower(), None)
+# Re-exported so every adapter keeps importing key resolution from one place.
+# The implementation moved to gateway/credentials.py when BYOK became a
+# deployment mode (self-hosted env keys vs. managed per-tenant keys); adapters
+# are deliberately unaware of which mode is active.
+resolve_api_key = _resolve_api_key
 
 
 class ProviderHTTPError(RuntimeError):

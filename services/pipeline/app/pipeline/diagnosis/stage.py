@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Diagnosis stage entry point.
 
 `diagnose(context, fetcher, gateway)` runs the LangGraph and returns a typed

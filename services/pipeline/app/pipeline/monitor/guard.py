@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Membership guard for the LLM-as-judge parser.
 
 The parser (a small model) sometimes echoes the "Known competitors" list back as

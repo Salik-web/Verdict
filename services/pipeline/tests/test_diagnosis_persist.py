@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Integration: run_diagnosis persists Gap rows for a scan (offline — fake
 fetcher + mock gateway). Skips cleanly if the DB is unreachable."""
 

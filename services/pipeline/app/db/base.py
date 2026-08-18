@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """SQLAlchemy engine, session factory, and declarative base.
 
 The engine is created lazily (no connection until first use), so importing this

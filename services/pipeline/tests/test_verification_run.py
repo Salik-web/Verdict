@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Integration: ship an asset, verify it, get an honest before/after verdict.
 
 Sets up an invisible "before" (0 self mentions over the demo account's prompts),

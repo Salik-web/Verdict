@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Proves the health endpoints and the internal-secret guard.
 
 Sets a known secret in the environment before importing the app so the cached

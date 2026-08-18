@@ -39,11 +39,29 @@ gaps:
     base_rank: 1.00
     label: "A citation-time SEARCH bot is blocked by robots.txt"
 
+  # Ranked at the ceiling on purpose: a noindex tag tells every search and
+  # citation engine to drop the page outright. Nothing else in the report can
+  # help while it is set, so it must outrank every other gap.
+  page_noindex:
+    layer: seo
+    fix_type: remove_noindex
+    base_rank: 1.00
+    label: "Page carries meta robots noindex — engines are told not to index it"
+
   missing_llms_txt:
     layer: geo
     fix_type: add_llms_txt
     base_rank: 0.40
     label: "No /llms.txt to guide AI assistants (or stale)"
+
+  # Advisory, like page_noindex: there is no generator for add_freshness_signals
+  # because the fix is editorial — publish/updated dates on the customer's own
+  # templates. Execution skips advisory fixes and ships the next buildable one.
+  stale_content:
+    layer: seo
+    fix_type: add_freshness_signals
+    base_rank: 0.30
+    label: "No freshness signal (published/updated date) on the page checked"
 
 # Severity multiplier applied to base_rank when producing a Gap's rank_score.
 severity_weights:

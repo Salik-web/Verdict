@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Cost of a grounded call = tokens + a flat per-request search fee.
 
 The per-token model alone reports ~nothing for the most expensive call in the

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Structured logging + optional Sentry for the pipeline.
 
 Logging is stdlib-only (no new runtime dep): one configured root logger at the

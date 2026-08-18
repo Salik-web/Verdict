@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Structural validation for generated schema.org JSON-LD.
 
 The generator emits FAQPage JSON-LD that we render to a visible FAQ AND embed as

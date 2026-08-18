@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Celery application for pipeline workers.
 
 Run a worker with:
@@ -50,6 +52,12 @@ celery_app.conf.beat_schedule = {
     "enqueue-due-scans": {
         "task": "schedule.enqueue_due_scans",
         "schedule": float(get_schedule_config().tick_minutes * 60),
+    },
+    # Backstop for workers that died rather than failed: a killed process runs
+    # no handler, so its scan would sit at `running` forever without this.
+    "sweep-stale-scans": {
+        "task": "schedule.sweep_stale_scans",
+        "schedule": float(get_schedule_config().stale_sweep_every_minutes * 60),
     },
     # Verification is scheduled, never chained: a shipped fix needs time to land
     # before re-measuring. Delay + tick are config (verification.yaml).

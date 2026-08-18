@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Internal endpoints, guarded by the shared-secret dependency.
 
 /internal/ping proves the authenticated path. The rest are the triggers the TS
@@ -107,6 +109,77 @@ async def run_execution(body: ScanRunRequest) -> ScanRunResponse:
 
     async_result = run_execution_task.delay(str(body.scan_id), str(body.account_id))
     return ScanRunResponse(accepted=True, scan_id=body.scan_id, task_id=async_result.id)
+
+
+@router.get("/engines")
+async def engines() -> dict:
+    """Which measurement engines this deployment can actually call, and why not.
+
+    Read-only status, never a key-entry surface: in a self-hosted install keys
+    belong in .env, and an API that accepted them would invite putting secrets
+    somewhere they can be read back. This exists so a user with no keys sees
+    "set PERPLEXITY_API_KEY" instead of watching a scan fail.
+    """
+    from app.gateway import get_gateway
+    from app.gateway.availability import all_task_statuses
+
+    gateway = get_gateway()
+    statuses = all_task_statuses(gateway.mode, gateway.config)
+    return {
+        "mode": gateway.mode,
+        "engines": [
+            {
+                "task": s.task,
+                "label": s.label,
+                "provider": s.provider,
+                "model": s.model,
+                "available": s.available,
+                "reason": s.reason,
+                "missing_key_env": s.missing_key_env,
+                # Only measurement engines matter for "can I run a scan"; the
+                # rest are internal tasks the UI should not present as engines.
+                "is_measurement": s.task.startswith("measurement"),
+            }
+            for s in statuses
+        ],
+    }
+
+
+class PromptGenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    account_id: uuid.UUID
+    count: int | None = None
+    category: str | None = None
+
+
+@router.post("/prompts/generate")
+async def generate_prompts(body: PromptGenerateRequest) -> dict:
+    """Generate a buyer-intent prompt pack for an account and store it.
+
+    Synchronous on purpose: it is one model call, it happens once during
+    onboarding, and returning the prompts inline lets the caller show them
+    immediately instead of polling a job. Safe to call twice — prompts the
+    account already has are skipped.
+    """
+    from app.pipeline.monitor.prompt_runner import (
+        PromptGenerationUnavailable,
+        generate_and_store_prompts,
+    )
+
+    try:
+        return generate_and_store_prompts(
+            body.account_id, count=body.count, category=body.category
+        )
+    except PromptGenerationUnavailable as exc:
+        # 503: the deployment is missing a key, which the operator can fix. This
+        # is not a bad request and not an internal error.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
 
 
 class VerificationRunRequest(BaseModel):

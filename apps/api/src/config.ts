@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 import { z } from "zod";
 
 /**
@@ -58,5 +60,63 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       .join("\n");
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
+  assertNoPlaceholderSecrets(parsed.data);
   return parsed.data;
+}
+
+/**
+ * Placeholder secrets that ship as working defaults so `docker compose up`
+ * needs no setup. They are safe on localhost and catastrophic anywhere else:
+ * INTERNAL_SHARED_SECRET is the only thing guarding the pipeline's internal
+ * trigger endpoints, COOKIE_SECRET forges any session, and an all-zero
+ * MASTER_ENCRYPTION_KEY leaves stored CMS credentials effectively plaintext.
+ *
+ * Matching is on the obvious shapes rather than exact strings, so a user who
+ * edited the file at all is not blocked, while a user who never touched it
+ * cannot reach production by accident.
+ */
+const PLACEHOLDERS: Record<string, (v: string) => boolean> = {
+  INTERNAL_SHARED_SECRET: (v) => v.includes("change-me"),
+  COOKIE_SECRET: (v) => v.includes("change-me"),
+  MASTER_ENCRYPTION_KEY: (v) => /^0+$/.test(v),
+};
+
+const HOW_TO_GENERATE: Record<string, string> = {
+  INTERNAL_SHARED_SECRET: "openssl rand -hex 32",
+  COOKIE_SECRET: "openssl rand -hex 32",
+  MASTER_ENCRYPTION_KEY:
+    "openssl rand -hex 32   (must be exactly 32 bytes hex / 64 chars)",
+};
+
+export function assertNoPlaceholderSecrets(config: AppConfig): void {
+  // Localhost stays frictionless: that is the entire point of the defaults.
+  if (config.NODE_ENV !== "production") return;
+
+  const offenders = Object.entries(PLACEHOLDERS)
+    .filter(([key, isPlaceholder]) =>
+      isPlaceholder(String(config[key as keyof AppConfig] ?? "")),
+    )
+    .map(([key]) => key);
+
+  if (offenders.length === 0) return;
+
+  const lines = offenders
+    .map(
+      (key) =>
+        "  - " +
+        key +
+        " is still the development placeholder.\n" +
+        "    Generate a real value with:  " +
+        HOW_TO_GENERATE[key],
+    )
+    .join("\n");
+
+  throw new Error(
+    "Refusing to start with NODE_ENV=production and placeholder secrets:\n" +
+      lines +
+      "\n\nThese defaults exist so `docker compose up` works with no setup. " +
+      "They are public knowledge - this repository ships them - so they " +
+      "protect nothing outside localhost. Set real values, or run with " +
+      "NODE_ENV=development if this is a local machine.",
+  );
 }

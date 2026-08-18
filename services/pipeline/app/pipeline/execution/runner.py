@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Runner: DB-facing orchestration around the pure Execution stage.
 
 Loads a GeneratorContext + open gaps via repositories, runs the stage, writes the
@@ -21,6 +23,7 @@ from app.db.repositories import (
     VerifiedFactRepository,
 )
 from app.gateway import Gateway
+from app.pipeline.execution.base import Generator
 from app.pipeline.execution.config import PIPELINE_ROOT, get_execution_config
 from app.pipeline.execution.contracts import (
     CompetitorRef,
@@ -28,7 +31,9 @@ from app.pipeline.execution.contracts import (
     GeneratorContext,
     VerifiedFactRef,
 )
+from app.pipeline.execution.facts_gate import GenerationBlocked
 from app.pipeline.execution.stage import generate_top_fix
+from app.pipeline.execution.validate import VALIDATOR_VERSION
 from app.pipeline.verification.feedback import confidence_overrides_from_history
 
 _COMPARISON_CATEGORIES = {"comparison", "alternatives", "competitive"}
@@ -90,6 +95,24 @@ def load_open_gaps(
     ]
 
 
+def asset_metadata(asset, plan_score: float) -> dict[str, Any]:
+    """What gets stored alongside an asset row.
+
+    `validator_version` is the load-bearing entry: without it a stored `passed` is
+    a claim of unknown vintage, and revalidate.py cannot tell an asset the current
+    validator approved from one generated before the validator existed.
+    """
+    return {
+        "fix_type": asset.fix_type,
+        "content_kind": asset.content_kind,
+        "validator_version": VALIDATOR_VERSION,
+        "schema_jsonld": asset.schema_jsonld,
+        "claims": [c.model_dump() for c in asset.claims],
+        "violations": asset.violations,
+        "plan_score": plan_score,
+    }
+
+
 def _write_artifact(account_id: uuid.UUID, asset_id: uuid.UUID, asset) -> str:
     ext = "html" if asset.content_kind == "html" else "txt"
     rel = (
@@ -108,7 +131,16 @@ def run_execution(
     *,
     scan_id: uuid.UUID | str | None = None,
     gateway: Gateway | None = None,
+    registry: dict[str, Generator] | None = None,
 ) -> dict[str, Any]:
+    """Plan the account's open gaps and, if a generator exists for the top fix,
+    build and persist the asset.
+
+    `registry=None` discovers generators (entry points + in-process
+    registrations); pass an explicit mapping to compose the runner without
+    touching global state. A stock install discovers none, so the ordinary
+    result is a ranked backlog and `skipped_generation`.
+    """
     account_id = _as_uuid(account_id)
     scan_id = _as_uuid(scan_id) if scan_id else None
 
@@ -119,9 +151,38 @@ def run_execution(
         # confidence for gap_types we've already shipped fixes for.
         overrides = confidence_overrides_from_history(session, account_id)
     if not gaps:
-        raise ValueError("no open gaps to execute")
+        # A clean site is a legitimate result, not an error.
+        return {"skipped": True, "reason": "no open gaps to execute", "backlog": []}
 
-    output = generate_top_fix(gaps, context, gateway, confidence_overrides=overrides)
+    try:
+        output = generate_top_fix(
+            gaps,
+            context,
+            gateway,
+            registry=registry,
+            confidence_overrides=overrides,
+        )
+    except GenerationBlocked as blocked:
+        # Not a failure: we deliberately refused to publish something hollow. The
+        # gaps stay open, and the customer gets an actionable reason.
+        return {
+            "blocked": True,
+            "reason": blocked.reason,
+            "detail": blocked.detail,
+            "backlog": blocked.detail.get("backlog", []),
+        }
+
+    if not output.produced_asset:
+        # The ordinary path in this distribution: gaps were found and ranked,
+        # but no generator is registered to build the top fix. The backlog IS
+        # the deliverable here, so it must be reported, not swallowed.
+        return {
+            "skipped_generation": True,
+            "reason": output.reason,
+            "unsupported_fix_types": output.unsupported_fix_types,
+            "backlog": [(i.fix_type, i.score) for i in output.backlog.items],
+        }
+
     asset = output.asset
 
     asset_id = uuid.uuid4()
@@ -135,14 +196,7 @@ def run_execution(
             type=asset.asset_type,
             title=asset.title,
             content_ref=content_ref,
-            metadata={
-                "fix_type": asset.fix_type,
-                "content_kind": asset.content_kind,
-                "schema_jsonld": asset.schema_jsonld,
-                "claims": [c.model_dump() for c in asset.claims],
-                "violations": asset.violations,
-                "plan_score": output.plan_item.score,
-            },
+            metadata=asset_metadata(asset, output.plan_item.score),
             target_prompt_ids=asset.target_prompt_ids,
             status=asset.status,
             validation_state=asset.validation_state,

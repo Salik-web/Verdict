@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """robots.txt bot audit: correct verdict + the GPTBot-allowed/SearchBot-blocked
 trap, driven by a fixture robots.txt (no network)."""
 
@@ -38,7 +40,7 @@ def _fetcher(robots_text: str | None) -> FakeFetcher:
 
 
 def test_blocked_search_bots_and_trap():
-    audit, findings = audit_robots(_fetcher(ROBOTS), TARGET)
+    audit, findings, _robots = audit_robots(_fetcher(ROBOTS), TARGET)
 
     assert audit.robots_found is True
     assert "OAI-SearchBot" in audit.blocked_search_bots
@@ -57,7 +59,7 @@ def test_blocked_search_bots_and_trap():
 
 
 def test_missing_robots_allows_all():
-    audit, findings = audit_robots(_fetcher(None), TARGET)
+    audit, findings, _robots = audit_robots(_fetcher(None), TARGET)
     assert audit.robots_found is False
     assert audit.blocked_search_bots == []
     assert all(v.allowed for v in audit.verdicts)

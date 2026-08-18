@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Measurement: ask one engine one prompt, via the gateway 'measurement' task.
 
 Kept deliberately thin — the gateway owns provider choice, retries, caching,

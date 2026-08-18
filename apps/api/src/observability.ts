@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 import * as Sentry from "@sentry/node";
 import type { AppConfig } from "./config.js";
 

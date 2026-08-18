@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Re-parse a completed scan's STORED answers — no new grounded calls.
 
 Grounded measurement (Gemini) is the expensive, quota'd part; its verbatim output

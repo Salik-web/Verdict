@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Tenant-scoped data access for competitors.
 
 Every query filters on account_id — there is no un-scoped read path.

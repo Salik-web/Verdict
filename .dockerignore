@@ -1,0 +1,51 @@
+# Keep the build context small AND correct.
+#
+# node_modules is the load-bearing entry: pnpm installs a symlink farm pointing
+# at absolute host paths, so copying the host's tree over the one installed
+# inside the image breaks every binary (`tsc: MODULE_NOT_FOUND`). The image must
+# install its own.
+
+# ---- Dependencies (each image installs its own) ----
+node_modules
+**/node_modules
+.venv
+**/.venv
+__pycache__
+**/__pycache__
+*.pyc
+
+# ---- Build output (rebuilt in-image) ----
+dist
+**/dist
+.next
+**/.next
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# ---- Secrets: never bake these into a layer ----
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+secrets/
+scripts/real-account.json
+.private-extraction/
+
+# ---- VCS, CI, editors ----
+.git
+.github
+.gitignore
+.claude
+.vscode
+.idea
+
+# ---- Local-only artifacts ----
+services/pipeline/artifacts
+infra/
+docs/
+*.md
+!README.md

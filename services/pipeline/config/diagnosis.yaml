@@ -13,10 +13,25 @@ fetcher:
 
 scraper:
   user_agent: "GEO-DiagnosisBot/0.1 (+https://geo.example/bot)"
-  timeout_s: 10
+  # 60s, not 10. Real marketing sites are heavy and slow: imagine.art serves a
+  # 3 MB homepage that took 57s to transfer from a container, and a 10s read
+  # timeout turned every page-level check into `check_failed` — technically
+  # honest, but the user just saw a scan that found nothing and no reason why.
+  # This is httpx's PER-OPERATION timeout (connect/read/write), not a total
+  # deadline, so a slow trickle can still exceed it in wall-clock terms — 30s
+  # was still not enough for that 3 MB page, which is why this is 60.
+  # The Celery soft time limit (600s) is the real backstop for a wedged scan.
+  timeout_s: 60
   max_pages_per_scan: 10 # hard cap on outbound fetches per diagnosis
   max_redirects: 3 # every hop is re-checked by the SSRF guard
-  max_bytes: 2000000 # 2 MB response cap
+  # 8 MB response cap. Raised from 2 MB: imagine.art's homepage is 2.9 MB, so the
+  # old cap analysed 69% of it and the checks drew "not found on this page"
+  # conclusions from the part they read. Absences from truncated content now
+  # downgrade to check_failed (probe.downgrade_truncated_absences), which is
+  # correct but silently loses real findings on any heavy page — so the cap has to
+  # be big enough that truncation is the exception. Still bounded: this is a
+  # memory/DoS guard, not a crawl budget.
+  max_bytes: 8000000
   rate_limit_delay_s: 0.3 # politeness delay between fetches
   respect_robots: true # obey the target's robots.txt for our own UA
 

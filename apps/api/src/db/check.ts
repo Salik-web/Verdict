@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 /**
  * Proves the TS service can read the seeded demo account through its repository
  * layer (no raw SQL). Exits non-zero on any assertion failure.

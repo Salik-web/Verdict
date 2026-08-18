@@ -1,151 +1,189 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 "use client";
 
-import { useEffect, useState } from "react";
-import { apiFetch, postJSON, type ApiResult } from "@/lib/api";
-import { ErrorBox, Json, Section } from "@/lib/ui";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { apiFetch, postJSON } from "../../lib/api";
+import {
+  Button,
+  Card,
+  ErrorBox,
+  PageHeader,
+  RawJson,
+} from "../../components/ui";
+
+type Session = { userId: string; accountId: string } | null;
 
 export default function LoginPage() {
-  const [me, setMe] = useState<ApiResult | null>(null);
+  const router = useRouter();
+  const [me, setMe] = useState<Session>(null);
+  const [checked, setChecked] = useState(false);
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [company, setCompany] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<{ status: number; error: string } | null>(null);
 
-  // Signup form
-  const [suEmail, setSuEmail] = useState("founder@example.com");
-  const [suPass, setSuPass] = useState("supersecret123");
-  const [suCompany, setSuCompany] = useState("Acme Analytics");
-  const [suResult, setSuResult] = useState<ApiResult | null>(null);
-
-  // Login form
-  const [liEmail, setLiEmail] = useState("founder@example.com");
-  const [liPass, setLiPass] = useState("supersecret123");
-  const [liResult, setLiResult] = useState<ApiResult | null>(null);
-
-  async function loadMe() {
-    setMe(await apiFetch("/auth/me"));
-  }
-  useEffect(() => {
-    void loadMe();
+  const loadMe = useCallback(async () => {
+    const r = await apiFetch<Session>("/auth/me");
+    setMe(r.ok ? (r.data as Session) : null);
+    setChecked(true);
   }, []);
 
-  async function signup() {
-    const r = await postJSON("/auth/signup", {
-      email: suEmail,
-      password: suPass,
-      accountName: suCompany,
-    });
-    setSuResult(r);
-    if (r.ok) void loadMe();
-  }
+  useEffect(() => {
+    loadMe();
+  }, [loadMe]);
 
-  async function login() {
-    const r = await postJSON("/auth/login", { email: liEmail, password: liPass });
-    setLiResult(r);
-    if (r.ok) void loadMe();
+  async function submit() {
+    setBusy(true);
+    setErr(null);
+    const r =
+      mode === "login"
+        ? await postJSON<Session>("/auth/login", { email, password })
+        : await postJSON<Session>("/auth/signup", {
+            email,
+            password,
+            accountName: company,
+          });
+    setBusy(false);
+    if (!r.ok) {
+      setErr({ status: r.status, error: r.error ?? "" });
+      return;
+    }
+    await loadMe();
+    router.push("/setup");
   }
 
   async function logout() {
     await postJSON("/auth/logout", {});
-    void loadMe();
+    setMe(null);
   }
 
   return (
-    <div>
-      <h1 className="mb-4 text-xl font-bold">1. Login</h1>
+    <>
+      <PageHeader
+        title={me ? "Signed in" : "Sign in"}
+        description={
+          me
+            ? "You're authenticated against the API."
+            : "The demo account's password is printed by the seed job — run `docker compose logs seed`."
+        }
+      />
 
-      <Section title="Current identity — GET /auth/me">
-        <div className="mb-2 flex gap-2">
-          <button
-            onClick={loadMe}
-            className="border border-gray-500 bg-gray-200 px-2 py-1 text-sm"
-          >
-            Refresh /auth/me
-          </button>
-          <button
-            onClick={logout}
-            className="border border-gray-500 bg-gray-200 px-2 py-1 text-sm"
-          >
-            Logout
-          </button>
-        </div>
-        {me?.ok ? (
-          <p className="text-sm">
-            Logged in as <b>{(me.data as { email?: string })?.email}</b> · account{" "}
-            <code>{(me.data as { accountId?: string })?.accountId}</code>
-          </p>
-        ) : (
-          <p className="text-sm text-gray-600">Not logged in (or session expired).</p>
-        )}
-        <ErrorBox result={me} />
-        <Json data={me?.data} />
-      </Section>
+      {checked && me ? (
+        <Card>
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <dt className="text-xs uppercase text-gray-500">Account</dt>
+              <dd className="font-mono text-sm">{me.accountId}</dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase text-gray-500">User</dt>
+              <dd className="font-mono text-sm">{me.userId}</dd>
+            </div>
+          </dl>
+          <div className="mt-4 flex gap-2">
+            <Button onClick={() => router.push("/setup")}>Go to setup</Button>
+            <Button variant="secondary" onClick={logout}>
+              Sign out
+            </Button>
+          </div>
+          <RawJson data={me} label="raw session JSON" />
+        </Card>
+      ) : (
+        <Card className="max-w-md">
+          <div className="mb-4 flex gap-2 text-sm">
+            <button
+              type="button"
+              onClick={() => setMode("login")}
+              className={`rounded px-2 py-1 ${mode === "login" ? "bg-gray-900 text-white" : "text-gray-600"}`}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("signup")}
+              className={`rounded px-2 py-1 ${mode === "signup" ? "bg-gray-900 text-white" : "text-gray-600"}`}
+            >
+              Create account
+            </button>
+          </div>
 
-      <Section title="Sign up — POST /auth/signup">
-        <p className="mb-2 text-xs text-gray-600">
-          Password must be ≥ 10 chars. A fresh account starts empty (no prompts /
-          competitors / facts) — you add those on Setup.
-        </p>
-        <div className="flex flex-col gap-2 sm:max-w-md">
-          <label className="text-sm">
-            Email
-            <input
-              className="ml-2 w-64"
-              value={suEmail}
-              onChange={(e) => setSuEmail(e.target.value)}
-            />
-          </label>
-          <label className="text-sm">
-            Password
-            <input
-              className="ml-2 w-64"
-              value={suPass}
-              onChange={(e) => setSuPass(e.target.value)}
-            />
-          </label>
-          <label className="text-sm">
-            Company
-            <input
-              className="ml-2 w-64"
-              value={suCompany}
-              onChange={(e) => setSuCompany(e.target.value)}
-            />
-          </label>
-          <button
-            onClick={signup}
-            className="w-32 border border-gray-500 bg-gray-200 px-2 py-1 text-sm"
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              submit();
+            }}
+            className="space-y-3"
           >
-            Sign up
-          </button>
-        </div>
-        <ErrorBox result={suResult} />
-        {suResult?.ok && <Json data={suResult.data} />}
-      </Section>
+            {mode === "signup" && (
+              <Field
+                label="Company"
+                value={company}
+                onChange={setCompany}
+                placeholder="Acme Analytics"
+              />
+            )}
+            <Field
+              label="Email"
+              type="email"
+              value={email}
+              onChange={setEmail}
+              placeholder="owner@acme.example.com"
+            />
+            <Field
+              label="Password"
+              type="password"
+              value={password}
+              onChange={setPassword}
+            />
+            <Button type="submit" disabled={busy}>
+              {busy ? "Working…" : mode === "login" ? "Sign in" : "Create account"}
+            </Button>
+          </form>
 
-      <Section title="Log in — POST /auth/login">
-        <div className="flex flex-col gap-2 sm:max-w-md">
-          <label className="text-sm">
-            Email
-            <input
-              className="ml-2 w-64"
-              value={liEmail}
-              onChange={(e) => setLiEmail(e.target.value)}
-            />
-          </label>
-          <label className="text-sm">
-            Password
-            <input
-              className="ml-2 w-64"
-              value={liPass}
-              onChange={(e) => setLiPass(e.target.value)}
-            />
-          </label>
-          <button
-            onClick={login}
-            className="w-32 border border-gray-500 bg-gray-200 px-2 py-1 text-sm"
-          >
-            Log in
-          </button>
-        </div>
-        <ErrorBox result={liResult} />
-        {liResult?.ok && <Json data={liResult.data} />}
-      </Section>
-    </div>
+          {err && (
+            <div className="mt-4">
+              <ErrorBox
+                status={err.status}
+                error={err.error}
+                context={mode === "login" ? "Sign-in failed" : "Sign-up failed"}
+              />
+            </div>
+          )}
+        </Card>
+      )}
+    </>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+        {label}
+      </span>
+      <input
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-gray-900 focus:outline-none"
+      />
+    </label>
   );
 }

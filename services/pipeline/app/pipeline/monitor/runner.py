@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Runner: the DB-facing orchestration around the pure Monitor stage.
 
 Loads a ScanContext via repositories, drives the scan lifecycle
@@ -104,12 +106,22 @@ def run_scan(
             # so a chained scan is also accurate before it completes.
             engines_ran = sorted({m.engine for m in output.mentions})
             ScanRepository(session).set_engine_set(account_id, scan_id, engines_ran)
+            # observations = answers we actually got and could read. It is the
+            # denominator behind every mention_rate, so it must be reported
+            # alongside what was ASKED — a scan that asked for 10 and used 8 has
+            # to say so, not quietly divide by 10.
+            asked = len(context.prompts) * context.repeats * len(engines_ran or [1])
             stats = {
                 "prompts": len(context.prompts),
                 "engines": engines_ran,
                 "repeats": context.repeats,
                 "mentions": n_mentions,
                 "sov_rows": n_sov,
+                "observations_requested": asked,
+                "observations_used": asked - len(output.failed_observations),
+                "failed_observations": [
+                    f.model_dump(mode="json") for f in output.failed_observations
+                ],
             }
             if finalize:
                 ScanRepository(session).mark_completed(account_id, scan_id, stats)

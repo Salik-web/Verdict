@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Tenant-scoped data access for pipeline job rows (per-stage status/error)."""
 
 from __future__ import annotations

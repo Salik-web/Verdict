@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Integration: trigger a scan for the demo account (mock mode) and verify that
 mentions rows + a share_of_voice row appear with correct SoV math.
 

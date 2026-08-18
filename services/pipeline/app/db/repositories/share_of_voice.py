@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Tenant-scoped writes for the pre-computed share_of_voice aggregate."""
 
 from __future__ import annotations

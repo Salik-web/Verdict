@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """The Monitor stage as a LangGraph.
 
   measure_and_parse --> compute_share_of_voice
@@ -19,6 +21,7 @@ from langgraph.graph import END, START, StateGraph
 from app.gateway import Gateway
 from app.pipeline.contracts import (
     CitationSource,
+    FailedObservation,
     MentionRecord,
     ScanContext,
     SoVRecord,
@@ -35,6 +38,7 @@ class MonitorState(TypedDict, total=False):
     parses: list[EngineParse]
     mentions: list[MentionRecord]
     share_of_voice: list[SoVRecord]
+    failed_observations: list[FailedObservation]
 
 
 def build_monitor_graph(gateway: Gateway, engines: list[EngineConfig]):
@@ -45,22 +49,71 @@ def build_monitor_graph(gateway: Gateway, engines: list[EngineConfig]):
 
         parses: list[EngineParse] = []
         mentions: list[MentionRecord] = []
+        failures: list[FailedObservation] = []
 
         for engine in engines:
             for prompt in context.prompts:
                 for run in range(1, context.repeats + 1):
-                    scenario = engine.scenario_for_run(run - 1)
-                    answer = measure_once(
-                        gateway,
-                        account_id=context.account_id,
-                        scan_id=context.scan_id,
-                        prompt=prompt,
-                        gateway_task=engine.gateway_task,
-                        scenario=scenario,
-                    )
-                    parsed = parse_answer(
-                        gateway, context, answer_text=answer.text, scenario=scenario
-                    )
+                    scenario = engine.scenario_for_run(run - 1, gateway.mode)
+                    try:
+                        answer = measure_once(
+                            gateway,
+                            account_id=context.account_id,
+                            scan_id=context.scan_id,
+                            prompt=prompt,
+                            gateway_task=engine.gateway_task,
+                            scenario=scenario,
+                        )
+                    except Exception as exc:
+                        # An answer we never received is not an answer in which the
+                        # brand was absent. Drop the observation instead of storing
+                        # a confident mentioned=False — and keep scanning, because
+                        # one refused call must not void the other nine.
+                        failures.append(
+                            FailedObservation(
+                                prompt_id=prompt.id,
+                                engine=engine.name,
+                                run=run,
+                                stage="measurement",
+                                reason=f"{type(exc).__name__}: {exc}"[:500],
+                                finish_reason=getattr(exc, "finish_reason", None),
+                            )
+                        )
+                        continue
+
+                    # Same rule for a cut-off answer: it is evidence of what WAS
+                    # said, never evidence of what was not said, so it cannot
+                    # support a mentioned=False observation either.
+                    if answer.truncated:
+                        failures.append(
+                            FailedObservation(
+                                prompt_id=prompt.id,
+                                engine=f"{answer.provider}/{answer.model}",
+                                run=run,
+                                stage="measurement",
+                                reason="answer truncated before completion",
+                                finish_reason=answer.finish_reason,
+                            )
+                        )
+                        continue
+
+                    try:
+                        parsed = parse_answer(
+                            gateway, context, answer_text=answer.text, scenario=scenario
+                        )
+                    except Exception as exc:
+                        # We have the answer but no reliable reading of it. Counting
+                        # it would be inventing a result; excluding it is honest.
+                        failures.append(
+                            FailedObservation(
+                                prompt_id=prompt.id,
+                                engine=f"{answer.provider}/{answer.model}",
+                                run=run,
+                                stage="parse",
+                                reason=f"{type(exc).__name__}: {exc}"[:500],
+                            )
+                        )
+                        continue
                     # #1 The engine label is the model that ACTUALLY answered, not
                     # the config slot name — so the DB never misattributes (the
                     # "perplexity_sonar" slot resolving to Gemini in dev is the bug
@@ -94,7 +147,13 @@ def build_monitor_graph(gateway: Gateway, engines: list[EngineConfig]):
                             resolve=resolve,
                         )
                     )
-        return {"parses": parses, "mentions": mentions}
+        # `observations` downstream is len(parses) — so a failed observation is
+        # excluded from every rate's denominator simply by never being appended.
+        return {
+            "parses": parses,
+            "mentions": mentions,
+            "failed_observations": failures,
+        }
 
     def compute_share_of_voice(state: MonitorState) -> MonitorState:
         return {"share_of_voice": compute_sov(state["context"], state["parses"])}

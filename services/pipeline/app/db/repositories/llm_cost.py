@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Repository for llm_cost_log writes (per-call usage/cost)."""
 
 from __future__ import annotations

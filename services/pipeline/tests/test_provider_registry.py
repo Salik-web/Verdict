@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Provider registry: a new adapter is a drop-in — the gateway never changes.
 
 The decisive test is `test_new_adapter_dispatches_through_the_gateway`: it defines

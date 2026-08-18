@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Scheduler runner: find accounts whose next scan is due and enqueue them.
 
 `select_due_accounts` is the decision (reads the DB, applies the jittered cadence);

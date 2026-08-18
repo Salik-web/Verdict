@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { readArtifact } from "../artifacts.js";
@@ -62,8 +64,10 @@ export function registerDashboardRoutes(
   });
 
   // Single asset + its generated content, read from disk (content_ref). The HTML
-  // is already nh3-sanitized; the browser renders it in a sandboxed iframe. We
-  // return JSON (no HTML served from this origin), so the global CSP is untouched.
+  // was nh3-sanitized by the pipeline before it was written. We return it as
+  // JSON — no HTML is ever served from this origin, so the global CSP is
+  // untouched and a client chooses how (and whether) to render it. See
+  // artifacts.ts for the tenant/path checks and rendering guidance.
   app.get("/assets/:id", { preHandler: requireAuth }, async (req, reply) => {
     const { accountId } = authOf(req);
     const { id } = parse(uuidParam, req.params);
@@ -102,6 +106,21 @@ export function registerDashboardRoutes(
       return row ?? reply.code(404).send({ error: "not_found" });
     },
   );
+
+  // Which engines this deployment can call. Read-only by design: self-hosted
+  // keys live in .env, and an endpoint that ACCEPTED keys would be a place to
+  // read them back out of. Auth-gated because it names your configuration.
+  app.get("/engines", { preHandler: requireAuth }, async (_req, reply) => {
+    try {
+      return await ctx.pipeline.engines();
+    } catch (err) {
+      // The pipeline being down is not the same as having no engines, and
+      // showing "no engines configured" here would be a lie.
+      return reply
+        .code(502)
+        .send({ error: "pipeline_unreachable", message: String(err) });
+    }
+  });
 
   app.get("/share-of-voice", { preHandler: requireAuth }, async (req) => {
     const { accountId } = authOf(req);

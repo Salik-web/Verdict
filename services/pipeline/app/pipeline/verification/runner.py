@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Runner: DB-facing orchestration for the Verification stage.
 
 For a shipped asset it (1) reads the before-metric from the scan that surfaced the

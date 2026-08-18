@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """LEDGER COMPLETENESS: every issued gateway call lands exactly one logged row.
 
 This is a class-of-bug test, not an instance test. Three separate defects shipped
@@ -36,6 +38,8 @@ from app.gateway.gateway import build_gateway
 from app.gateway.models_config import get_models_config
 from app.pipeline.diagnosis.fetcher import FakeFetcher, FetchResult
 from app.pipeline.diagnosis.runner import run_diagnosis
+from app.pipeline.execution.base import Generator
+from app.pipeline.execution.contracts import AssetDraft, GeneratorContext, PlanItem
 from app.pipeline.execution.runner import run_execution
 from app.pipeline.monitor.runner import run_scan
 
@@ -43,6 +47,52 @@ DEMO_ACCOUNT_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 TARGET = "https://8.8.8.8/"  # public IP so the SSRF guard passes; served offline
 ROBOTS = "User-agent: *\nDisallow:"
 HOME = "<html><body><h1>Acme Analytics</h1><p>Product analytics.</p></body></html>"
+# No comparison URL, but readable — so the comparison gap is a confirmed absence
+# and stays rankable, keeping this fixture exercising the generation call.
+SITEMAP = (
+    '<?xml version="1.0" encoding="UTF-8"?>'
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+    "<url><loc>https://8.8.8.8/</loc></url>"
+    "<url><loc>https://8.8.8.8/pricing</loc></url>"
+    "</urlset>"
+)
+
+
+class _GeneratingStub(Generator):
+    """A generator that actually calls the gateway, as a real one does.
+
+    This repo registers no generators, but the ledger invariants below must
+    still cover the `generation` operation — it is the one that historically
+    logged with scan_id NULL. So the fixture supplies a generator whose only job
+    is to issue one generation call and attribute it to the scan.
+    """
+
+    fix_type = "generate_comparison_page"
+    asset_type = "comparison_page"
+
+    def __init__(self, gateway) -> None:
+        self._gateway = gateway
+
+    def generate(self, item: PlanItem, context: GeneratorContext) -> AssetDraft:
+        from app.gateway.types import Message
+
+        self._gateway.call(
+            "generation",
+            [Message(role="user", content="write a comparison page")],
+            account_id=context.account_id,
+            # The bug this pins: omit scan_id and the row is invisible to
+            # per-scan cost even though it is present in the ledger.
+            scan_id=context.scan_id,
+            scenario="comparison_page",
+        )
+        return AssetDraft(
+            asset_type=self.asset_type,
+            fix_type=self.fix_type,
+            title="t",
+            content="<p>ok</p>",
+            content_kind="html",
+            target_prompt_ids=context.target_prompt_ids,
+        )
 
 
 class CountingGateway:
@@ -92,6 +142,13 @@ def _fetcher() -> FakeFetcher:
                 ok=True,
                 text=ROBOTS,
             ),
+            f"{TARGET}sitemap.xml": FetchResult(
+                url=f"{TARGET}sitemap.xml",
+                final_url=f"{TARGET}sitemap.xml",
+                status=200,
+                ok=True,
+                text=SITEMAP,
+            ),
         }
     )
 
@@ -125,7 +182,12 @@ def loop_run():
             fetcher=_fetcher(),
             gateway=gw,
         )
-        run_execution(DEMO_ACCOUNT_ID, scan_id=scan_id, gateway=gw)
+        run_execution(
+            DEMO_ACCOUNT_ID,
+            scan_id=scan_id,
+            gateway=gw,
+            registry={"generate_comparison_page": _GeneratingStub(gw)},
+        )
         yield gw, sink, scan_id
     finally:
         with SessionLocal() as s:
@@ -152,9 +214,10 @@ def test_per_operation_counts_match(loop_run):
     assert logged == gw.issued, f"issued={dict(gw.issued)} logged={dict(logged)}"
 
 
-def test_all_four_operations_are_exercised(loop_run):
+def test_all_operations_are_exercised(loop_run):
     """Guards the guard: if the loop stopped issuing one of these, the equality
-    assertions above would still pass vacuously for it."""
+    assertions above would still pass vacuously for it. `generation` is issued
+    by the fixture's stub generator, since this repo ships none."""
     gw, _, _ = loop_run
     assert {"measurement", "processing", "generation"} <= set(gw.issued)
 

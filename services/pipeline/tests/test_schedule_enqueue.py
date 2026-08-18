@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Integration: an overdue account gets a jittered `scheduled` scan enqueued.
 
 Uses a throwaway account with an old last-scan so it is unambiguously due, and an

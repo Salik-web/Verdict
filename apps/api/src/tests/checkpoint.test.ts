@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 /**
  * Phase 4 checkpoint (node:test + app.inject against live Postgres/Redis,
  * plus the live Python pipeline for POST /scans):

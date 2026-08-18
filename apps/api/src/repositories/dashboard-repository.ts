@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 import { and, desc, eq } from "drizzle-orm";
 import type { Database } from "../db/client.js";
 import {

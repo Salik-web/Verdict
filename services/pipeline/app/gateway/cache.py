@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Response cache. In-memory + per-process for now, behind an interface so a
 Redis-backed cache (shared across Celery workers) can drop in later.
 """

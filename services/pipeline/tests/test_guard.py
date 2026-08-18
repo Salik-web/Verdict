@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Membership guard: fabricated brands are dropped; ranks come from the text.
 
 Pure, no gateway/DB. Mirrors the real failure: the parser echoed the tracked

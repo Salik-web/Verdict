@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Loaders for schedule.yaml and quotas.yaml (data-driven, not inline)."""
 
 from __future__ import annotations
@@ -18,6 +20,13 @@ class ScheduleConfig(BaseModel):
     cadence_days: int
     jitter_minutes: int
     tick_minutes: int
+    # A scan still pending/running this long after it started is treated as
+    # abandoned and marked failed by the sweeper. Must stay comfortably ABOVE
+    # celery_task_time_limit_s (the hard kill), or the sweep would race a task
+    # that is still legitimately running — free-tier scans are slow by design.
+    stale_after_minutes: int = 30
+    # How often the beat looks for abandoned scans.
+    stale_sweep_every_minutes: int = 10
 
 
 class QuotaConfig(BaseModel):

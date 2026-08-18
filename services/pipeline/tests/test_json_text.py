@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Tolerant JSON extraction — the belt to JSON mode's suspenders.
 
 Every one of these shapes is something a real model actually emits despite being

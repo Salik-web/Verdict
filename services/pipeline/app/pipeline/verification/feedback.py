@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Close the loop: turn verification history into planner confidence overrides.
 
 The planner scores gaps by impact x control x confidence. `confidence` starts as

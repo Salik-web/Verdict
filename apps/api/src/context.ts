@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 /**
  * AppContext — everything routes need, built once in server.ts and passed
  * down. Keeps routes free of construction logic and easy to test with fakes.

@@ -1,13 +1,16 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authOf, buildRequireAuth } from "../auth/plugin.js";
 import type { AppContext } from "../context.js";
 import { AccountRepository } from "../repositories/account-repository.js";
-import { parse } from "../validate.js";
+import { domainSchema, parse } from "../validate.js";
 
 const updateSchema = z.object({
   name: z.string().min(2).max(120).optional(),
-  domain: z.string().max(255).nullable().optional(),
+  // Explicit null clears it; "" is rejected (see domainSchema).
+  domain: domainSchema.nullable().optional(),
   brandName: z.string().max(120).nullable().optional(),
   brandAliases: z.array(z.string().max(120)).max(20).optional(),
   settings: z.record(z.unknown()).optional(),

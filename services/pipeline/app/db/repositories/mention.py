@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Tenant-scoped writes for the mentions time-series table."""
 
 from __future__ import annotations
@@ -42,6 +44,35 @@ class MentionRepository:
         self.session.add_all(rows)
         self.session.flush()
         return len(rows)
+
+    def cited_sources_for_scan(
+        self, account_id: uuid.UUID | str, scan_id: uuid.UUID | str
+    ) -> list[dict]:
+        """Every distinct source cited across a scan's answers.
+
+        Deduped by URL, preserving the first title seen — the same article is
+        cited by many answers, and a domain histogram built on duplicates would
+        just count how chatty each engine was.
+        """
+        rows = self.session.scalars(
+            select(Mention).where(
+                Mention.account_id == _as_uuid(account_id),
+                Mention.scan_id == _as_uuid(scan_id),
+            )
+        ).all()
+        seen: dict[str, dict] = {}
+        for row in rows:
+            for entry in row.cited_urls or []:
+                if isinstance(entry, str):
+                    url, title = entry, None
+                elif isinstance(entry, dict):
+                    url, title = entry.get("url"), entry.get("title")
+                else:
+                    continue
+                if not url or url in seen:
+                    continue
+                seen[url] = {"url": url, "title": title}
+        return list(seen.values())
 
     def self_stats(
         self,

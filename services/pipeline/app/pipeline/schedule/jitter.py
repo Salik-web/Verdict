@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Pure scheduling math: when is an account's next scan due, and is it due now?
 
 The jitter offset is a *deterministic* function of the account id (stable hash),

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 /**
  * Typed loader for config/plans.json — per-plan usage quotas.
  * Data-driven: limits change in the JSON, never in code.

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Celery tasks for pipeline stages, and the chain that runs the loop.
 
 Thin wrappers around the stage runners so orchestration (retry, routing, chaining)
@@ -161,6 +163,18 @@ def enqueue_due_scans_task() -> dict[str, Any]:
     return enqueue_due_scans(
         enqueue=lambda scan_id, account_id: start_pipeline(scan_id, account_id)
     )
+
+
+@celery_app.task(name="schedule.sweep_stale_scans")
+def sweep_stale_scans_task() -> dict[str, Any]:
+    """Beat entry point: fail scans whose worker died.
+
+    The soft time limit only fires inside a task that is still alive; a process
+    that was killed leaves its scan at `running` forever. This is the backstop.
+    """
+    from app.pipeline.schedule.sweeper import sweep_stale_scans
+
+    return sweep_stale_scans()
 
 
 @celery_app.task(name="verification.enqueue_due")

@@ -1,0 +1,20 @@
+# This image builds with services/pipeline as its context, so the repo-root
+# .dockerignore does not apply here.
+
+# uv creates .venv with absolute paths baked into its scripts; the image builds
+# its own from uv.lock.
+.venv
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+
+# Secrets: never bake a key into a layer.
+.env
+.env.*
+!.env.example
+
+# Generated assets and local test output.
+artifacts/
+tests/

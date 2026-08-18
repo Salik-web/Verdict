@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Diagnosis stage end-to-end with a fake fetcher (no network) and the gateway in
 mock mode: produces SEO + GEO findings, a bot-audit verdict, and typed Gaps."""
 

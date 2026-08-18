@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """SQLAlchemy models — a hand-written MIRROR of db/migrations/*.sql.
 
 The SQL is the single source of truth. Enum columns reference the existing
@@ -267,6 +269,46 @@ class Gap(TimestampMixin, Base):
     rank_score: Mapped[Decimal | None] = mapped_column(Numeric)
     status: Mapped[str] = mapped_column(
         gap_status, nullable=False, server_default="open"
+    )
+
+
+class DiagnosisFinding(Base):
+    """One observation a check made, gap or no gap.
+
+    Every check's basis has to be recoverable from the record: until this table
+    existed only `len(findings)` survived a scan, so a check that correctly
+    reported "no problem here" left behind exactly as much evidence as one that
+    was wrong. `detail` carries the check's own audit trail.
+
+    No TimestampMixin: a finding is a fact about a moment, never updated.
+    """
+
+    __tablename__ = "diagnosis_findings"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    account_id: Mapped[uuid.UUID] = _account_fk()
+    scan_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("scans.id", ondelete="CASCADE")
+    )
+    layer: Mapped[str] = mapped_column(Text, nullable=False)
+    code: Mapped[str] = mapped_column(Text, nullable=False)
+    ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    severity: Mapped[str] = mapped_column(Text, nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    gap_type: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[Decimal] = mapped_column(
+        Numeric, nullable=False, server_default="1.0"
+    )
+    from_absence: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="true"
+    )
+    detail: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    evidence: Mapped[Any] = mapped_column(JSONB, nullable=False, server_default="[]")
+    created_at: Mapped[datetime] = mapped_column(
+        SA_TIMESTAMP(timezone=True), nullable=False, server_default=sa_func.now()
     )
 
 

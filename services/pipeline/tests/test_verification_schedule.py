@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Verification scheduling: shipped assets come due after the config delay.
 
 Verification is deliberately not chained onto a scan — the beat picks assets up

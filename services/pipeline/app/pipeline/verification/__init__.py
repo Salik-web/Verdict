@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Verification stage: prove what a shipped asset actually moved.
 
 Re-runs the asset's exact target prompts through the Monitor stage, compares

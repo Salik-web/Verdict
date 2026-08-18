@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 /**
  * Password hashing via argon2id (OWASP first choice). Parameters follow the
  * OWASP minimums (19 MiB memory, t=2, p=1).

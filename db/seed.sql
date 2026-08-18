@@ -23,20 +23,13 @@ VALUES (
 ON CONFLICT (id) DO UPDATE SET plan = EXCLUDED.plan;
 
 -- Owner user --------------------------------------------------------------
--- Password is 'demo-password-123' (argon2id, same params as the API's hasher).
--- LOCAL DEMO CREDENTIALS ONLY — this account exists so you can log into a
--- pre-populated tenant from the dev harness. Never seed this into a real env.
-INSERT INTO users (id, account_id, email, name, role, status, password_hash)
-VALUES (
-  '00000000-0000-0000-0000-0000000000a1',
-  '00000000-0000-0000-0000-000000000001',
-  'owner@acme.example.com',
-  'Acme Owner',
-  'owner',
-  'active',
-  '$argon2id$v=19$m=19456,t=2,p=1$SyLjlC/PjAMEd7ox+rhxfQ$VDf0Gg7EQG0pNxFql8p1Nl21hp/Tut1LcqWDc0rwDAM'
-)
-ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash;
+-- Deliberately NOT created here. A fixed password hash committed to a public
+-- repository is a credential everyone on the internet knows, and "it's only the
+-- demo account" stops being true the moment someone seeds a reachable
+-- environment. The seed RUNNER (apps/api/src/db/seed.ts) creates this user with
+-- a freshly generated password and prints it once.
+--
+--   pnpm --filter @geo/api db:seed
 
 -- Competitors (incl. the account's own brand as is_self) -------------------
 INSERT INTO competitors (id, account_id, name, domain, aliases, is_self)

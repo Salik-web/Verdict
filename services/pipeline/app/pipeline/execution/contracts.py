@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Typed contracts for the Plan + Execute stage."""
 
 from __future__ import annotations
@@ -64,6 +66,23 @@ class CompetitorRef(BaseModel):
     domain: str | None = None
     aliases: list[str] = Field(default_factory=list)
 
+    @property
+    def display_name(self) -> str:
+        """The name to print on a customer-facing page.
+
+        Competitors are stored however the customer typed them, so an entry like
+        `runway` shipped verbatim into a generated /llms.txt. Deliberately
+        conservative: prefer an alias that is the SAME name with real casing
+        ("Runway"), and otherwise only capitalise a leading lowercase letter.
+        Never re-case the interior — "HiggsField" and "iPhone" must survive.
+        """
+        for candidate in [self.name, *self.aliases]:
+            if candidate.lower() == self.name.lower() and any(
+                c.isupper() for c in candidate
+            ):
+                return candidate
+        return self.name[:1].upper() + self.name[1:] if self.name else self.name
+
 
 class GeneratorContext(BaseModel):
     """Everything a generator needs — resolved from the DB by the runner."""
@@ -80,12 +99,32 @@ class GeneratorContext(BaseModel):
     competitors: list[CompetitorRef] = Field(default_factory=list)
     verified_facts: list[VerifiedFactRef] = Field(default_factory=list)
     target_prompt_ids: list[uuid.UUID] = Field(default_factory=list)
+    # Facts removed by the shared placeholder gate before any generator ran, as
+    # "fact_type/key" strings. Kept so a blocked/empty result can say WHICH facts
+    # are still unfilled instead of "you have no facts" when the customer has
+    # clearly started filling them in.
+    dropped_placeholder_facts: list[str] = Field(default_factory=list)
 
-    def fact(self, fact_type: str, key: str) -> VerifiedFactRef | None:
+    def fact(
+        self, fact_type: str, key: str, about: ClaimAbout | None = None
+    ) -> VerifiedFactRef | None:
+        """Look up the backing fact for a claim.
+
+        When `about` is given, a fact with that subject wins — a self fact and a
+        competitor fact can share (fact_type, key), and returning the wrong one
+        turned a correct claim into a bogus "wrong subject" violation. Falls back
+        to any match on (fact_type, key) so a genuine subject mismatch is still
+        reported as a mismatch rather than as "not in verified_facts".
+        """
+        fallback: VerifiedFactRef | None = None
         for f in self.verified_facts:
-            if f.fact_type == fact_type and f.key == key:
+            if f.fact_type != fact_type or f.key != key:
+                continue
+            if about is None or f.about == about:
                 return f
-        return None
+            if fallback is None:
+                fallback = f
+        return fallback
 
     @property
     def self_facts(self) -> list[VerifiedFactRef]:
@@ -139,7 +178,24 @@ class Asset(BaseModel):
 
 
 class ExecutionOutput(BaseModel):
+    """The result of Plan + Execute.
+
+    An asset is the OPTIONAL part. Planning always runs and always produces a
+    backlog; generation only happens when a Generator is registered for the
+    top-ranked fix_type. The open-source distribution registers none, so
+    `asset is None` with a populated backlog is the ordinary outcome, not an
+    error — see registry.py. `unsupported_fix_types` names the ranked items we
+    could not build, in rank order, so the caller can report exactly which fix
+    a generator is missing for.
+    """
+
     model_config = ConfigDict(extra="forbid")
     backlog: Backlog
-    plan_item: PlanItem
-    asset: Asset
+    plan_item: PlanItem | None = None
+    asset: Asset | None = None
+    unsupported_fix_types: list[str] = Field(default_factory=list)
+    reason: str | None = None
+
+    @property
+    def produced_asset(self) -> bool:
+        return self.asset is not None

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """OpenAI-compatible chat-completions provider (dev/prod).
 
 Covers any provider exposing the OpenAI /chat/completions shape — Groq,
@@ -9,6 +11,15 @@ Gemini is NOT served here — it needs Google Search grounding, which has no
 OpenAI-compatible equivalent; see providers/gemini.py.
 
 Retry/backoff/429 policy is shared with the Gemini adapter (providers/http.py).
+
+VERIFICATION STATUS: this adapter HAS run live (OpenRouter, generation task).
+Its **Perplexity grounded-source path** (`_extract_sources`, reading
+`search_results` / `citations`) has NOT — no Perplexity key was available when it
+was written, so it is covered only by unit tests against documented response
+shapes. In particular, whether Perplexity returns direct publisher URLs or
+redirect wrappers is UNCONFIRMED; the pipeline handles both, but the answer
+decides how useful third-party-presence checking is for that engine. One live
+scan settles it. See docs/ENGINES.md.
 """
 
 from __future__ import annotations
@@ -24,7 +35,7 @@ from app.gateway.providers.http import (
     resolve_api_key,
 )
 from app.gateway.providers.registry import register_provider
-from app.gateway.types import Message, ProviderResult, Usage
+from app.gateway.types import Citation, Message, ProviderResult, Usage
 
 if TYPE_CHECKING:
     from app.gateway.models_config import ModelsConfig
@@ -89,11 +100,73 @@ class OpenAICompatibleProvider(Provider):
         )
         resp.raise_for_status()
         data = resp.json()
-        choice = data["choices"][0]["message"]["content"]
+        choice_raw = data["choices"][0]
+        choice = choice_raw["message"]["content"]
         usage_raw = data.get("usage", {})
         usage = Usage(
             prompt_tokens=usage_raw.get("prompt_tokens", 0),
             completion_tokens=usage_raw.get("completion_tokens", 0),
             total_tokens=usage_raw.get("total_tokens", 0),
         )
-        return ProviderResult(text=choice, usage=usage, raw=data)
+        # `length` is OpenAI's "hit max_tokens". The monitor refuses to build a
+        # mentioned=False observation on a cut-off answer, so this signal has to
+        # survive the adapter — without it a truncated answer is stored as if it
+        # were complete, which is the exact defect the Gemini adapter fixed.
+        finish_reason = choice_raw.get("finish_reason")
+        sources, citations = _extract_sources(data)
+        return ProviderResult(
+            text=choice,
+            usage=usage,
+            raw=data,
+            citations=citations,
+            sources=sources,
+            finish_reason=finish_reason,
+            truncated=finish_reason == "length",
+        )
+
+
+def _extract_sources(data: dict[str, Any]) -> tuple[list[Citation], list[str]]:
+    """Pull grounded sources out of an OpenAI-shaped response.
+
+    Only search-grounded providers return these; every other provider on this
+    adapter simply has neither key, so both lists come back empty. That is why
+    this lives here rather than in a Perplexity-specific adapter — the shape is
+    additive, and an ungrounded provider is unaffected.
+
+    Perplexity returns two overlapping fields
+    (docs.perplexity.ai/api-reference/chat-completions-post):
+
+      * `search_results` — [{title, url, date?, last_updated?, snippet?}].
+        Preferred: it carries the PUBLISHER TITLE, which is what lets a
+        third-party-presence check work on domain membership alone, with no
+        extra HTTP.
+      * `citations` — a flat list of URL strings, no titles.
+
+    Both are read: `sources` prefers search_results and falls back to citations
+    so a URL is never lost just because the richer field was absent, and
+    `citations` stays the plain URL list for back-compat with existing rows.
+    """
+    results = data.get("search_results")
+    sources: list[Citation] = []
+    if isinstance(results, list):
+        for entry in results:
+            if not isinstance(entry, dict):
+                continue
+            url = entry.get("url")
+            if not url:
+                continue
+            title = entry.get("title")
+            sources.append(Citation(url=url, title=title if title else None))
+
+    raw_citations = data.get("citations")
+    citations = (
+        [c for c in raw_citations if isinstance(c, str)]
+        if isinstance(raw_citations, list)
+        else []
+    )
+
+    if not sources and citations:
+        sources = [Citation(url=u) for u in citations]
+    if not citations and sources:
+        citations = [s.url for s in sources]
+    return sources, citations

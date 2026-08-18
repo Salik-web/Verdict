@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 /**
  * Migration runner. Applies db/migrations/*.sql in filename order, each in its
  * own transaction, recording applied versions in schema_migrations. Idempotent:

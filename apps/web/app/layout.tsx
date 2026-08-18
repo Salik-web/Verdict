@@ -1,22 +1,14 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 import "./globals.css";
-import Link from "next/link";
 import type { Metadata } from "next";
+import { SidebarNav } from "../components/nav";
 
 export const metadata: Metadata = {
-  title: "GEO test harness",
-  description: "Throwaway click-through harness for the GEO backend",
+  title: "GEO — AI visibility monitoring",
+  description:
+    "Monitor whether AI engines recommend your brand, and diagnose why not.",
 };
-
-const NAV: [string, string][] = [
-  ["/login", "1. Login"],
-  ["/setup", "2. Setup"],
-  ["/scans", "3. Scans"],
-  ["/dashboard", "4. Dashboard"],
-  ["/gaps", "5. Gaps"],
-  ["/assets", "6. Assets"],
-  ["/proof", "7. Proof"],
-  ["/costs", "8. Costs"],
-];
 
 export default function RootLayout({
   children,
@@ -25,16 +17,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-white text-gray-900">
-        <nav className="flex flex-wrap gap-3 border-b border-gray-400 bg-gray-100 p-3 text-sm">
-          <span className="font-bold">GEO harness</span>
-          {NAV.map(([href, label]) => (
-            <Link key={href} href={href} className="text-blue-700 underline">
-              {label}
-            </Link>
-          ))}
-        </nav>
-        <main className="mx-auto max-w-5xl p-4">{children}</main>
+      {/* Light mode only — dark mode doubles the surface for no adoption benefit. */}
+      <body className="min-h-screen bg-gray-50 text-gray-900 antialiased">
+        <div className="flex min-h-screen">
+          <SidebarNav />
+          <main className="min-w-0 flex-1">
+            <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
+          </main>
+        </div>
       </body>
     </html>
   );

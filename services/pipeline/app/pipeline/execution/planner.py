@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Planner: flatten gaps, score by impact x control x confidence (config-
 weighted), dedup by fix_type (one asset can resolve several queries), and emit a
 prioritized backlog.
@@ -34,9 +36,20 @@ def plan(
             return overrides[gap_type]
         return cfg.factors_for(gap_type).confidence
 
+    # Drop weakly-detected gaps from RANKING (not from storage — they stay in the
+    # gaps table for the report). A single-page inference must never become the
+    # top fix: that is exactly how a false "no comparison page" scored 0.81 and
+    # shipped a page for a site that already had 51 of them.
+    rankable = [
+        g
+        for g in gaps
+        if float((g.details or {}).get("detection_confidence", 1.0))
+        >= cfg.min_detection_confidence
+    ]
+
     # Group by fix_type — one fix (e.g. a comparison page) resolves many gaps.
     groups: dict[str, list[tuple[GapInput, float]]] = {}
-    for gap in gaps:
+    for gap in rankable:
         factors = cfg.factors_for(gap.gap_type)
         score = _score(factors, cfg.weights, confidence_for(gap.gap_type))
         groups.setdefault(gap.fix_type, []).append((gap, score))

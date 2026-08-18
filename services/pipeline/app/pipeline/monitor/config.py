@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Loaders for the monitor's data-driven config (config/monitor.yaml) and the
 prompt templates (config/prompts/*.md). Nothing here is inline in logic."""
 
@@ -21,9 +23,17 @@ class EngineConfig(BaseModel):
     gateway_task: str = "measurement"
     mock_scenarios: list[str] = []
 
-    def scenario_for_run(self, run_index: int) -> str | None:
-        """Mock-only: cycle scenarios by run index so repeats vary."""
-        if not self.mock_scenarios:
+    def scenario_for_run(self, run_index: int, mode: str = "mock") -> str | None:
+        """Cycle the MOCK fixture scenarios by run index so repeats vary.
+
+        `mode` is not decoration. A scenario is a fixture selector — it means
+        nothing outside mock mode, but it IS part of the gateway's cache key, so
+        leaking these labels into dev/prod made two byte-identical prompts hash
+        differently ("competitor_wins" vs "customer_invisible") and both get
+        billed instead of the second one hitting the cache. Scoped here, at the
+        one place the labels are produced.
+        """
+        if mode != "mock" or not self.mock_scenarios:
             return None
         return self.mock_scenarios[run_index % len(self.mock_scenarios)]
 

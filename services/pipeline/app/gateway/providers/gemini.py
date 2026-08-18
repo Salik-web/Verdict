@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Google AI Studio (Gemini) provider — the real engine adapter.
 
 Speaks the Gemini `generateContent` REST API directly (NOT the OpenAI-compatible
@@ -51,6 +53,24 @@ if TYPE_CHECKING:
 # Gemini uses "model" where OpenAI-style APIs use "assistant"; system prompts go
 # in a dedicated systemInstruction field rather than the message list.
 _ROLE_MAP = {"user": "user", "assistant": "model"}
+
+# finishReason values that mean "this text is cut short", not "this is the answer".
+_TRUNCATED_FINISH_REASONS = {"MAX_TOKENS", "LENGTH"}
+
+
+class EmptyCandidate(RuntimeError):
+    """Gemini answered 200 with a candidate containing no text.
+
+    Not a transport error and not an empty answer — it is an answer we never got.
+    Carrying `finish_reason` is the whole point: without it, "the model returned
+    nothing" is indistinguishable after the fact from "the model said nothing
+    relevant", which is how two blank measurement runs were stored as real
+    observations of the brand being absent.
+    """
+
+    def __init__(self, message: str, *, finish_reason: str | None = None) -> None:
+        super().__init__(message)
+        self.finish_reason = finish_reason
 
 
 @register_provider("gemini")
@@ -135,6 +155,14 @@ class GeminiProvider(Provider):
             generation_config["maxOutputTokens"] = params["max_tokens"]
         if "top_p" in params:
             generation_config["topP"] = params["top_p"]
+        # Thinking tokens are billed as output and consume maxOutputTokens, so a
+        # 2.5 model can exhaust its budget reasoning and return a candidate with no
+        # parts at all. Extraction tasks gain nothing from it: models.yaml sets
+        # thinking_budget: 0 there. ai.google.dev/gemini-api/docs/thinking
+        if target.thinking_budget is not None:
+            generation_config["thinkingConfig"] = {
+                "thinkingBudget": target.thinking_budget
+            }
         if generation_config:
             payload["generationConfig"] = generation_config
         return payload
@@ -149,9 +177,29 @@ class GeminiProvider(Provider):
                 f"gemini returned no candidates (promptFeedback={feedback})"
             )
         candidate = candidates[0]
+        finish_reason = candidate.get("finishReason")
 
         parts = (candidate.get("content") or {}).get("parts") or []
         text = "".join(p.get("text", "") for p in parts)
+
+        # An answer we never received is NOT an answer in which the brand was
+        # absent. Gemini returns 200 with a candidate that has no parts when it
+        # hit MAX_TOKENS (usually spent on thinking tokens), a safety filter, or a
+        # recitation block — and treating that as an empty-but-valid answer stored
+        # it as a real observation with mentioned=False, understating every
+        # mention_rate. Raise so the gateway logs status='error' and the caller
+        # can exclude it from the denominator, exactly like a CHECK_FAILED in
+        # diagnosis. finishReason is included so this is diagnosable after the fact.
+        if not text.strip():
+            raise EmptyCandidate(
+                f"gemini returned an empty answer (finishReason={finish_reason!r}, "
+                f"parts={len(parts)}, usage={data.get('usageMetadata')})",
+                finish_reason=finish_reason,
+            )
+        # A truncated answer is real text, but it is not the whole answer — flag it
+        # so downstream can tell "the engine did not name you" from "we stopped
+        # reading before it could".
+        truncated = finish_reason in _TRUNCATED_FINISH_REASONS
 
         usage_raw = data.get("usageMetadata") or {}
         usage = Usage(
@@ -165,6 +213,8 @@ class GeminiProvider(Provider):
             raw=data,
             citations=extract_citations(candidate),
             sources=extract_sources(candidate),
+            finish_reason=finish_reason,
+            truncated=truncated,
         )
 
 

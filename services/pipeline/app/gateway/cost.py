@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Cost calculation and cost sinks.
 
 Cost is usage x configured price; every gateway call writes one row to
@@ -19,7 +21,11 @@ _PER_TOKENS = Decimal(1_000_000)
 
 
 def compute_cost(
-    price: Price | None, usage: Usage, *, grounded: bool = False
+    price: Price | None,
+    usage: Usage,
+    *,
+    grounded: bool = False,
+    grounded_units: int = 1,
 ) -> Decimal:
     """Tokens x price, plus a flat per-request fee for grounded search.
 
@@ -35,7 +41,12 @@ def compute_cost(
     out = Decimal(usage.completion_tokens) / _PER_TOKENS * Decimal(str(price.output))
     total = inp + out
     if grounded:
-        total += Decimal(str(price.grounded_request))
+        # `grounded_units` is how many billable searches actually ran. Gemini 2.5
+        # bills per prompt (1); Anthropic and OpenAI bill per search, and one
+        # request can run several. A provider that does not report a count falls
+        # back to 1 rather than to 0, so a missing field never zeroes the fee.
+        units = grounded_units if grounded_units and grounded_units > 0 else 1
+        total += Decimal(str(price.grounded_request)) * units
     return total.quantize(Decimal("0.000001"))
 
 

@@ -36,8 +36,24 @@ regexes = [
   # the runner, and the test constants only satisfy a required-env check.
   '''ci-[a-z]+-secret-\d+''',
   '''test-secret-\d+''',
-  # argon2 password HASHES are one-way and meant to be stored — they are not
-  # credentials. The only one committed is the local demo account's in
-  # db/seed.sql (password: demo-password-123, local dev only).
+  # argon2 hashes appear in TEST fixtures only. The demo account's hash used to
+  # be committed in db/seed.sql alongside its plaintext in a comment; it is now
+  # generated at seed time and printed once, so no real credential is committed.
+  # This entry stays because test files still construct hash-shaped strings.
   '''\$argon2id\$v=19\$m=\d+,t=\d+,p=\d+\$[A-Za-z0-9+/]+\$[A-Za-z0-9+/]+''',
+  # The development placeholders shipped in docker-compose.yml so
+  # `docker compose up` needs no setup. They are deliberately public — this
+  # repository publishes them — and they protect nothing: the API REFUSES to
+  # boot on them when NODE_ENV=production (apps/api/src/config.ts). Allowlisted
+  # by VALUE rather than by excluding the whole file, so a real secret
+  # accidentally added to docker-compose.yml would still be caught.
+  '''dev-only-change-me-[0-9a-f]+''',
+  # An all-zero KEK is the "obviously not a real key" placeholder, and the same
+  # production guard rejects it.
+  '''MASTER_ENCRYPTION_KEY[:=]\s*0{64}''',
+  # Fake secrets constructed by the production-guard test itself
+  # (apps/api/src/tests/config.test.ts). They exist to prove the guard fires;
+  # they are not credentials to anything.
+  '''a-real-generated-(secret|cookie-secret)-\d+''',
+  '''my-own-secret-value-[0-9a-z]+''',
 ]

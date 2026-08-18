@@ -1,12 +1,13 @@
 # Execution stage settings.
+#
+# This distribution registers NO generators, so execution plans and ranks gaps
+# and then reports "no generator available for this fix_type" as a normal
+# outcome. See app/pipeline/execution/registry.py for the extension point and
+# examples/generators/ for a reference implementation.
+#
+# There is deliberately no fix_type -> asset_type table here: a generator
+# declares its own `asset_type`, so registering one needs no config edit.
 
 # Where generated asset files are written (relative to services/pipeline).
 # content_ref on each asset points at the file; delivery = store + downloadable.
 artifacts_dir: "artifacts"
-
-# fix_type -> asset.type label recorded on the assets row. New fix types add a
-# generator (sharing the Generator interface) and a line here.
-asset_types:
-  generate_comparison_page: comparison_page
-  fix_robots_txt: robots_txt
-  add_llms_txt: llms_txt

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Scheduler math (pure): deterministic per-account jitter + due decisions."""
 
 from __future__ import annotations

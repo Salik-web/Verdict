@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Mock provider — returns canned fixture responses, no network, no API key.
 
 This is the DEFAULT, so the whole pipeline runs end-to-end with zero keys.

@@ -1,16 +1,42 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """SEO checks (the floor): structured data, heading structure, indexability,
 freshness, and a page-weight signal. Deterministic HTML parsing — no LLM.
+
+EVERY check here examines exactly ONE page (the entry URL), so every summary
+names that URL. "No structured data found" reads as a statement about the site
+and is not one — a marketing site can carry schema on its product pages and none
+on an app-shell homepage. Phrasing the scope honestly is what stops a page-level
+observation being read as a site-wide verdict.
 """
 
 from __future__ import annotations
 
 from bs4 import BeautifulSoup
 
-from app.pipeline.diagnosis.contracts import Finding
+from app.pipeline.diagnosis.contracts import Evidence, Finding
 from app.pipeline.diagnosis.fetcher import FetchResult
 
+# A conclusion drawn from ONE page whose fix is site-wide. Deliberately below the
+# planner's floor: "this page has no schema" is real, but it does not establish
+# that the SITE needs schema work, so it is stored and reported yet can never
+# become the top recommendation on one page's evidence.
+_SINGLE_PAGE_INFERENCE_CONFIDENCE = 0.4
 
-def check_seo(page: FetchResult) -> list[Finding]:
+
+def _where(page: FetchResult) -> str:
+    """The URL actually examined (after redirects)."""
+    return page.final_url or page.url
+
+
+def check_seo(
+    page: FetchResult, evidence: list[Evidence] | None = None
+) -> list[Finding]:
+    """Deterministic checks on ONE fetched page. Every finding carries the
+    evidence for that page, and names the URL it is about — these are page-level
+    facts, never site-wide claims."""
+    ev = list(evidence or [])
+    url = _where(page)
     soup = BeautifulSoup(page.text or "", "lxml")
     findings: list[Finding] = []
 
@@ -24,7 +50,9 @@ def check_seo(page: FetchResult) -> list[Finding]:
                 code="schema_present",
                 ok=True,
                 severity="info",
-                summary="Structured data present.",
+                summary=f"Structured data present on {url}.",
+                evidence=ev,
+                detail={"page_url": url},
             )
         )
     else:
@@ -34,8 +62,20 @@ def check_seo(page: FetchResult) -> list[Finding]:
                 code="schema_missing",
                 ok=False,
                 severity="medium",
-                summary="No structured data (JSON-LD / schema.org) found.",
+                summary=(
+                    f"No structured data (JSON-LD / schema.org) on {url} — "
+                    "checked this page only."
+                ),
                 gap_type="missing_schema",
+                status="confirmed_absent",
+                # add_schema_markup is a site-wide fix; one page can't justify it.
+                confidence=_SINGLE_PAGE_INFERENCE_CONFIDENCE,
+                evidence=ev,
+                detail={
+                    "page_url": url,
+                    "scope": "single_page",
+                    "fix_scope": "site_wide",
+                },
             )
         )
 
@@ -48,7 +88,9 @@ def check_seo(page: FetchResult) -> list[Finding]:
                 code="headings_ok",
                 ok=True,
                 severity="info",
-                summary="Single H1 with heading structure.",
+                summary=f"Single H1 with heading structure on {url}.",
+                evidence=ev,
+                detail={"page_url": url},
             )
         )
     else:
@@ -58,9 +100,18 @@ def check_seo(page: FetchResult) -> list[Finding]:
                 code="weak_headings",
                 ok=False,
                 severity="low",
-                summary=f"Expected one H1, found {len(h1s)} — weak structure.",
+                summary=(
+                    f"Expected one H1, found {len(h1s)} on "
+                    f"{page.final_url or page.url} — weak structure."
+                ),
                 gap_type="weak_page_structure",
-                detail={"h1_count": len(h1s)},
+                status="confirmed_absent",
+                evidence=ev,
+                detail={
+                    "h1_count": len(h1s),
+                    "page_url": url,
+                    "scope": "single_page",
+                },
             )
         )
 
@@ -75,8 +126,27 @@ def check_seo(page: FetchResult) -> list[Finding]:
                 layer="seo",
                 code="noindex",
                 ok=False,
-                severity="high",
-                summary="Page has meta robots noindex — it won't be indexed.",
+                severity="urgent",
+                summary=(
+                    f"{url} has meta robots noindex — engines are told not to "
+                    "index it, so nothing else in this report can help until "
+                    "it is removed."
+                ),
+                gap_type="page_noindex",
+                status="confirmed_absent",
+                # Definitive: the tag is either in the HTML we fetched or it is
+                # not. The fix is on this exact page, so no inference discount.
+                confidence=1.0,
+                # The only finding here backed by something we FOUND rather than
+                # by something we failed to find — so a truncated page does not
+                # weaken it. (The tag is in <head>, well inside any byte cap.)
+                from_absence=False,
+                evidence=ev,
+                detail={
+                    "page_url": url,
+                    "scope": "single_page",
+                    "robots_meta": content,
+                },
             )
         )
 
@@ -93,10 +163,25 @@ def check_seo(page: FetchResult) -> list[Finding]:
             ok=has_date,
             severity="info" if has_date else "low",
             summary=(
-                "Freshness signal present."
+                f"Freshness signal present on {url}."
                 if has_date
-                else "No freshness signal (date/modified) found."
+                else (
+                    f"No freshness signal (published/updated date) on {url} — "
+                    "engines can't tell how current this content is."
+                )
             ),
+            gap_type=None if has_date else "stale_content",
+            # Same shape as missing_schema: one page's absence of a date does not
+            # establish that the SITE's content is undated, and the fix is
+            # editorial across templates — so it is reported but never ranked as
+            # the top recommendation on this evidence alone.
+            confidence=1.0 if has_date else _SINGLE_PAGE_INFERENCE_CONFIDENCE,
+            evidence=ev,
+            detail={
+                "page_url": url,
+                "scope": "single_page",
+                **({} if has_date else {"fix_scope": "site_wide"}),
+            },
         )
     )
 
@@ -109,8 +194,14 @@ def check_seo(page: FetchResult) -> list[Finding]:
             code="page_weight",
             ok=kb < 500,
             severity="info",
-            summary=f"HTML ~{kb} KB, {blocking} blocking head scripts.",
-            detail={"html_kb": kb, "blocking_head_scripts": blocking},
+            summary=(f"{url}: HTML ~{kb} KB, {blocking} blocking head scripts."),
+            evidence=ev,
+            detail={
+                "html_kb": kb,
+                "blocking_head_scripts": blocking,
+                "page_url": url,
+                "scope": "single_page",
+            },
         )
     )
     return findings

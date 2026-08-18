@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Plan-quota double-check for the pipeline.
 
 The TS quota middleware is the real gate in front of the API; this is

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Mock-mode sitemap for the canned fixture site.
+
+  Deliberately contains NO comparison/alternatives URL: that is what makes the
+  owned-comparison-page check a CONFIRMED_ABSENT (full inventory read, nothing
+  matched) rather than a low-confidence guess, so the demo loop still produces a
+  comparison-page gap — now honestly, with evidence, instead of by inferring a
+  site-wide absence from the homepage's anchors.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://acme.example.com/</loc></url>
+  <url><loc>https://acme.example.com/pricing</loc></url>
+  <url><loc>https://acme.example.com/product</loc></url>
+  <url><loc>https://acme.example.com/docs</loc></url>
+  <url><loc>https://acme.example.com/blog/product-analytics-101</loc></url>
+  <url><loc>https://acme.example.com/about</loc></url>
+</urlset>

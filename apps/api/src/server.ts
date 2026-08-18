@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 import fastifyCookie from "@fastify/cookie";
 import fastifyCors from "@fastify/cors";
 import fastifyHelmet from "@fastify/helmet";
@@ -84,6 +86,10 @@ export async function buildServer(config: AppConfig): Promise<{
   await app.register(fastifyCors, {
     origin: config.FRONTEND_ORIGIN, // locked to the frontend, never '*'
     credentials: true,
+    // @fastify/cors defaults to GET,HEAD,POST only, so a browser preflight for
+    // DELETE/PATCH was refused and the call never left the browser ("Failed to
+    // fetch"). The API has always had those routes — list every verb it serves.
+    methods: ["GET", "HEAD", "POST", "PATCH", "DELETE"],
   });
   await app.register(fastifyCookie, { secret: config.COOKIE_SECRET });
   await app.register(fastifyRateLimit, {

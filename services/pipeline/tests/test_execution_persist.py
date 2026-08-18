@@ -1,6 +1,13 @@
-"""Integration: run_execution for the demo account persists a validated,
-downloadable, prompt-tagged comparison-page asset. Requires the migrated + seeded
-DB (seed includes the demo account's verified_facts). Skips if unreachable."""
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
+"""Integration: run_execution persists a validated, downloadable, prompt-tagged
+asset for the demo account.
+
+The PERSISTENCE path stays in this repo even though no generators do, because a
+downstream product registers a generator and relies on exactly this behaviour:
+artifact written to disk, assets row tenant-scoped and tagged with its target
+prompts, HTML sanitized. So the test supplies its own generator, which is what a
+downstream product does. Requires the migrated + seeded DB; skips if unreachable."""
 
 from __future__ import annotations
 
@@ -17,10 +24,30 @@ from app.db.repositories import AssetRepository
 from app.gateway.cost import NullCostSink
 from app.gateway.gateway import build_gateway
 from app.gateway.models_config import get_models_config
+from app.pipeline.execution.base import Generator
 from app.pipeline.execution.config import PIPELINE_ROOT
+from app.pipeline.execution.contracts import AssetDraft, GeneratorContext, PlanItem
 from app.pipeline.execution.runner import run_execution
 
 DEMO_ACCOUNT_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
+
+# The script tag is deliberate: sanitization is part of what this test pins.
+_PAGE = "<h1>Acme Analytics vs Globex</h1><script>alert(1)</script><p>Body.</p>"
+
+
+class _ComparisonStub(Generator):
+    fix_type = "generate_comparison_page"
+    asset_type = "comparison_page"
+
+    def generate(self, item: PlanItem, context: GeneratorContext) -> AssetDraft:
+        return AssetDraft(
+            asset_type=self.asset_type,
+            fix_type=self.fix_type,
+            title=f"{context.brand_name} vs Globex Insights",
+            content=_PAGE,
+            content_kind="html",
+            target_prompt_ids=context.target_prompt_ids,
+        )
 
 
 def _db_ready() -> bool:
@@ -57,7 +84,12 @@ def test_run_execution_persists_tagged_asset():
     gw = build_gateway(
         mode="mock", cost_sink=NullCostSink(), config=get_models_config()
     )
-    result = run_execution(DEMO_ACCOUNT_ID, scan_id=scan_id, gateway=gw)
+    result = run_execution(
+        DEMO_ACCOUNT_ID,
+        scan_id=scan_id,
+        gateway=gw,
+        registry={"generate_comparison_page": _ComparisonStub()},
+    )
 
     assert result["type"] == "comparison_page"
     assert result["status"] == "validated"

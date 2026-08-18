@@ -45,3 +45,12 @@ scripts/real-account.json
 # ---- curl cookie jars from manual API testing (contain session tokens) ----
 *jar.txt
 cookies.txt
+
+# Local-only: code extracted for the private/commercial repo. Never commit.
+.private-extraction/
+
+# Local scan artifacts
+.gitleaks-*.json
+
+# Local scan artifacts
+.gl.json

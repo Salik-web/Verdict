@@ -1,0 +1,202 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
+#
+# The whole stack, one command:
+#
+#     docker compose up
+#
+# Postgres, Redis, migrations, seed, the TS API, the Python pipeline, a Celery
+# worker + beat, and the UI. Defaults run in GATEWAY_MODE=mock, so this needs no
+# API keys and costs nothing — add keys to .env when you want real engines.
+#
+# Ordering is enforced by health/completion conditions rather than sleeps: the
+# `migrate` job must exit 0 before anything that touches the schema starts, so a
+# first-run user never sees "relation does not exist".
+#
+# infra/docker-compose.yml still exists for the infra-only workflow (Postgres +
+# Redis, everything else on the host). This file is the batteries-included one.
+
+name: geo
+
+x-pipeline-env: &pipeline-env
+  DATABASE_URL: postgresql+psycopg://geo:geo@postgres:5432/geo
+  REDIS_URL: redis://redis:6379/0
+  INTERNAL_SHARED_SECRET: ${INTERNAL_SHARED_SECRET:-dev-only-change-me-0123456789abcdef}
+  GATEWAY_MODE: ${GATEWAY_MODE:-mock}
+  DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-self_hosted}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  # Provider keys. Every one is optional: an engine whose key is absent is
+  # reported unavailable and skipped, so a user with one key gets a working
+  # one-engine scan. Unset in mock mode, which needs none of them.
+  GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+  PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+  GROQ_API_KEY: ${GROQ_API_KEY:-}
+  DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+  MOONSHOT_API_KEY: ${MOONSHOT_API_KEY:-}
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: geo
+      POSTGRES_PASSWORD: geo
+      POSTGRES_DB: geo
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geo -d geo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["${REDIS_PORT:-6379}:6379"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Runs to completion, then everything else starts. Migrations are idempotent,
+  # so this is safe on every `up`, not just the first.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      postgres: {condition: service_healthy}
+    environment:
+      DATABASE_URL: postgresql://geo:geo@postgres:5432/geo
+      NODE_ENV: development
+    command: ["node", "--import", "tsx", "src/db/migrate.ts"]
+    restart: "no"
+
+  # Demo account + a generated password, printed in this container's logs:
+  #     docker compose logs seed
+  # Refuses to run with NODE_ENV=production unless ALLOW_SEED=1.
+  seed:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    environment:
+      DATABASE_URL: postgresql://geo:geo@postgres:5432/geo
+      NODE_ENV: development
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+    command: ["node", "--import", "tsx", "src/db/seed.ts"]
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+    environment:
+      # DEVELOPMENT on purpose. This stack ships working placeholder secrets so
+      # `docker compose up` needs no setup, and the API refuses to boot with
+      # NODE_ENV=production while those placeholders are in place (see
+      # apps/api/src/config.ts). Claiming "production" here would either break
+      # the one-command path or force the guard to be toothless. Set real
+      # secrets in .env AND NODE_ENV=production when you deploy this for real.
+      NODE_ENV: ${NODE_ENV:-development}
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: postgresql://geo:geo@postgres:5432/geo
+      REDIS_URL: redis://redis:6379/0
+      PIPELINE_URL: http://pipeline:8000
+      INTERNAL_SHARED_SECRET: ${INTERNAL_SHARED_SECRET:-dev-only-change-me-0123456789abcdef}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+      COOKIE_SECRET: ${COOKIE_SECRET:-dev-only-change-me-0123456789abcdef0123456789abcdef}
+      MASTER_ENCRYPTION_KEY: ${MASTER_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+    ports: ["${API_PORT:-3000}:3000"]
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  pipeline:
+    build:
+      context: services/pipeline
+      dockerfile: Dockerfile
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+    environment: *pipeline-env
+    ports: ["${PIPELINE_PORT:-8000}:8000"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # Same image as `pipeline`, different command — the worker cannot drift from
+  # the API it shares code with.
+  worker:
+    build:
+      context: services/pipeline
+      dockerfile: Dockerfile
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+    environment: *pipeline-env
+    command: ["celery", "-A", "app.celery_app", "worker", "--loglevel=info"]
+    restart: unless-stopped
+
+  # Scheduled work: due scans, due verifications, and the stale-scan sweep.
+  # Exactly ONE beat must run, or every scheduled job fires N times.
+  beat:
+    build:
+      context: services/pipeline
+      dockerfile: Dockerfile
+    depends_on:
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+    environment: *pipeline-env
+    command: ["celery", "-A", "app.celery_app", "beat", "--loglevel=info"]
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Baked in at build time: the BROWSER calls the API, so this must be an
+        # address the browser can reach, not the compose service name.
+        NEXT_PUBLIC_API_BASE_URL: ${PUBLIC_API_URL:-http://localhost:3000}
+    depends_on:
+      api: {condition: service_healthy}
+      pipeline: {condition: service_healthy}
+    environment:
+      # Server-side only. The /api/costs route runs INSIDE this container and
+      # proxies to the pipeline's shared-secret endpoint, so it needs service
+      # names (not localhost, which here is the web container) and the secret —
+      # which is never shipped to the browser.
+      API_INTERNAL_URL: http://api:3000
+      PIPELINE_INTERNAL_URL: http://pipeline:8000
+      INTERNAL_SHARED_SECRET: ${INTERNAL_SHARED_SECRET:-dev-only-change-me-0123456789abcdef}
+    ports: ["${WEB_PORT:-5173}:5173"]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

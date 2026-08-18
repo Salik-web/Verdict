@@ -1,0 +1,251 @@
+{
+ "_note": "Build the permanent parser-recall fixture: stored answers + curated ground truth.\n\nGround truth = every AI product/tool BRAND the answer literally names. Curated by\nhand from the verbatim text (below), deliberately conservative: model/feature names\nthat belong to a listed product (Leonardo's \"Phoenix\"), techniques (LoRA,\nControlNet), and non-tool companies (Kuaishou, CNET) are excluded. Every entry\nbelow occurs literally in its answer — asserted by the fixture builder.",
+ "brand_name": "Imagine Art",
+ "brand_aliases": [
+  "ImagineArt",
+  "Imagine.art"
+ ],
+ "competitors": [
+  {
+   "name": "Imagine Art",
+   "aliases": [
+    "ImagineArt",
+    "Imagine.art"
+   ],
+   "is_self": true
+  },
+  {
+   "name": "HiggsField",
+   "aliases": [],
+   "is_self": false
+  },
+  {
+   "name": "Midjourney",
+   "aliases": [],
+   "is_self": false
+  },
+  {
+   "name": "HeyGen",
+   "aliases": [],
+   "is_self": false
+  },
+  {
+   "name": "runway",
+   "aliases": [],
+   "is_self": false
+  }
+ ],
+ "prompts": {
+  "db9f21f6-10a9-4e06-b131-466fdacd843e": "top alternatives to Midjourney for AI image generation",
+  "f99882c0-4539-4dd1-b978-9b1cbd590fa7": "What the best ai video generator tool?"
+ },
+ "answers": [
+  {
+   "prompt_id": "db9f21f6-10a9-4e06-b131-466fdacd843e",
+   "run": 1,
+   "text": "Midjourney is a leading AI image generator, but several strong alternatives cater to different needs, offering varied features, pricing, and usability. Here are some of the top alternatives:\n\n*   **Leonardo AI** is considered a close direct alternative to Midjourney, offering 150 free daily tokens and multiple AI models like Phoenix and FLUX. It also includes a Canvas Editor for post-generation editing, with paid plans starting from $10/month for commercial licensing.\n*   **Ideogram** excels at generating images with readable text, making it ideal for logos, posters, signage, and slogans. It offers a free tier with 10 prompts daily, and paid plans begin at $7/month.\n*   **Adobe Firefly** is a commercially safe option, as it's trained exclusively on Adobe Stock data and comes with legal indemnification for copyright disputes. It has a free tier within Adobe Express, with paid plans starting at $9.99/month, though its style range is narrower than Midjourney's.\n*   **DALL-E 3** is integrated into ChatGPT, offering a low entry barrier and excellent understanding of natural-language prompts. It's available in ChatGPT's free tier with limited generations, and a ChatGPT Plus subscription (from $20/month) provides more access.\n*   **Stable Diffusion** is a free, open-source option that can run locally on compatible hardware. It offers extensive customization through LoRA, ControlNet, and custom checkpoints, making it suitable for technically inclined users.\n*   **Playground AI** is excellent for high-volume generation, offering 500 free generations per day. It features an easy-to-use web UI and diverse style presets. Paid plans start from $15/month.\n*   **Magnific (formerly Freepik)** is highlighted as a top alternative, providing over 30 image and video models, an upscaler, and a commercial license from $14.50/month (billed annually). It also has a free tier with a daily limit.\n*   **Cuty AI** is an all-in-one platform for image and video creation.\n*   **SeaArt AI** is a free AI art generator.\n*   **Segmind** is a cloud orchestration platform for developers and builders.\n*   **DomoAI** is a complete AI animation platform that simplifies video creation.\n*   **Flux** is a newer open-source contender from the original Stable Diffusion team, aiming for Midjourney-level quality and reasonable text handling. It can be run through tools like ComfyUI and is free for users with local hardware.\n*   **Kling AI** from Kuaishou's team is strong in text-to-video and image-to-video generation alongside image generation, with a free tier and paid plans starting at $5.99.\n*   **ArtSmart.ai** offers high image quality and a user-friendly interface with many editing features, though it does not have a free plan.\n\nMany of these alternatives address common reasons users might seek to move away from Midjourney, such as its Discord-only interface, cost, or specific feature requirements like better text integration or commercial indemnification.",
+   "label": "P1r1",
+   "brands": [
+    "Midjourney",
+    "Leonardo AI",
+    "Ideogram",
+    "Adobe Firefly",
+    "DALL-E 3",
+    "ChatGPT",
+    "Stable Diffusion",
+    "Playground AI",
+    "Magnific",
+    "Freepik",
+    "Cuty AI",
+    "SeaArt AI",
+    "Segmind",
+    "DomoAI",
+    "Flux",
+    "ComfyUI",
+    "Kling AI",
+    "ArtSmart.ai"
+   ]
+  },
+  {
+   "prompt_id": "db9f21f6-10a9-4e06-b131-466fdacd843e",
+   "run": 2,
+   "text": "While Midjourney is recognized for its high-quality image generation and distinctive artistic style, several powerful alternatives offer unique strengths, including better text rendering, commercial safety, cost-effectiveness, or open-source flexibility. Here are some of the top alternatives for AI image generation:\n\n**1. DALL-E 3 (integrated into ChatGPT and Bing Image Creator)**\nDALL-E 3, developed by OpenAI, is praised for its ease of use and strong understanding of natural language prompts, allowing for seamless generation of detailed and imaginative images from text descriptions. It offers high-resolution outputs suitable for professional use and enhanced creativity through improved algorithms. DALL-E 3 is available in ChatGPT's free tier, making it highly accessible. Bing Image Creator also utilizes DALL-E 3 and provides free, high-quality generations.\n\n**2. Leonardo AI**\nConsidered a close direct alternative to Midjourney, Leonardo AI is particularly well-suited for artists, especially those in the gaming industry. It provides 150 free tokens daily, access to multiple AI models like Phoenix and FLUX, and a Canvas Editor for post-generation editing. Leonardo AI also offers deep creative control, allowing users to train their own models for consistent art styles.\n\n**3. Adobe Firefly**\nAdobe Firefly is the preferred choice for commercial use due to being trained exclusively on Adobe Stock data, with Adobe offering legal indemnification on copyright disputes. It integrates seamlessly with other Adobe applications, providing extensive creative capabilities and enhanced security. While its style range might be narrower than Midjourney's, it's a strong contender for corporate branding. A free tier is available within Adobe Express, with paid plans starting from $9.99/month.\n\n**4. Ideogram**\nIf generating images with readable and accurate text is a priority, Ideogram stands out as the clear leader. It is optimized for creating posters, logos, signage, and slogans, consistently producing images with well-designed text. Ideogram offers a free tier with 10 prompts per day, and paid plans start from $7/month.\n\n**5. Stable Diffusion**\nStable Diffusion is a powerful open-source and completely free alternative that can be run locally if you have the necessary GPU. It offers infinite customization through features like LoRA, ControlNet, and custom checkpoints, making it ideal for technically inclined users who desire extensive control. Stable Diffusion XL provides more features and opportunities for text-to-image model generations.\n\n**6. Playground AI**\nFor users needing to generate a high volume of images, Playground AI is an excellent option, offering 500 free generations per day. It features an easy web user interface and diverse style presets.\n\n**Other Notable Alternatives:**\n\n*   **ChatGPT (GPT-5.2)**: Beyond its chatbot capabilities, OpenAI's latest model, GPT-5.2, can create images directly within the chat using its native image engine.\n*   **Mirra**: Positioned as a content platform rather than just an art tool, Mirra handles image generation through carousel design, short-form video, and publishing, making it suitable for marketers whose endpoint is a published post.\n*   **NightCafe**: This platform combines AI technology with social media elements and gamification, offering a community and daily challenges. It accepts text prompts or original images to create unique art pieces.\n*   **SeaArt AI**: A free AI art generator that simplifies the creation and editing of high-quality images and videos without requiring professional skills.",
+   "label": "P1r2",
+   "brands": [
+    "Midjourney",
+    "DALL-E 3",
+    "ChatGPT",
+    "Bing Image Creator",
+    "OpenAI",
+    "Leonardo AI",
+    "Adobe Firefly",
+    "Ideogram",
+    "Stable Diffusion",
+    "Playground AI",
+    "Mirra",
+    "NightCafe",
+    "SeaArt AI",
+    "FLUX"
+   ]
+  },
+  {
+   "prompt_id": "db9f21f6-10a9-4e06-b131-466fdacd843e",
+   "run": 3,
+   "text": "If you're looking for alternatives to Midjourney for AI image generation, several powerful tools offer a range of features, from realistic image creation to artistic styles, and cater to different user needs and budgets.\n\nTop alternatives to Midjourney for AI image generation include:\n\n*   **Stable Diffusion** Stable Diffusion is often described as a \"raw engine\" rather than a single application, offering significant flexibility for users who want more control over their image generation process. It's an open-source option, meaning it can be free to set up and use.\n*   **ChatGPT (GPT Image 2)** OpenAI's ChatGPT, with its latest models like GPT-5.2 and GPT Image 2, can generate images directly within the chat interface. This integration makes it convenient for users already utilizing ChatGPT for other tasks. ChatGPT Plus, which includes GPT Image 2, is a paid subscription.\n*   **Leonardo AI** Built with artists in mind, especially those in the gaming industry, Leonardo AI provides tools for creating high-quality visuals. It offers a free tier with certain limitations.\n*   **Adobe Firefly** For users deeply embedded in the Adobe ecosystem, Firefly is a natural choice. It integrates with other Adobe products and is designed to complement creative workflows.\n*   **Ideogram** This platform is noted as a strong Midjourney alternative.\n*   **Playground AI** Playground AI is another popular alternative that offers a free tier with a daily limit.\n*   **Bing Image Creator** This tool is powered by DALL-E and is integrated into the Bing search engine, making it easily accessible for generating images.\n*   **Magnific AI (formerly Freepik)** Rebranded in April 2026, Magnific is highlighted for its wide selection and is considered a top recommendation. It offers a free tier with a daily limit and paid plans.\n*   **ArtSmart.ai** This tool is recognized for closely matching Midjourney's image quality and offering a wide array of features. It is a paid service.\n*   **Cuty AI** Described as an all-in-one platform for both image and video creation, Cuty AI aims to provide a unified experience for creators, offering access to various world-class AI models.\n*   **PicLumen** PicLumen's AI Image Generator is noted for combining advanced AI technology with a user-friendly interface, providing a dependable and accessible free option for generating high-quality visuals.\n*   **DALL-E 3** Developed by OpenAI, DALL-E 3 is known for generating some of the most realistic images among AI tools.\n\nMany of these alternatives offer powerful capabilities, some with free tiers or open-source options, allowing users to choose based on their specific creative needs, desired level of control, and budget.",
+   "label": "P1r3",
+   "brands": [
+    "Midjourney",
+    "Stable Diffusion",
+    "ChatGPT",
+    "OpenAI",
+    "Leonardo AI",
+    "Adobe Firefly",
+    "Ideogram",
+    "Playground AI",
+    "Bing Image Creator",
+    "DALL-E 3",
+    "Magnific",
+    "Freepik",
+    "ArtSmart.ai",
+    "Cuty AI",
+    "PicLumen"
+   ]
+  },
+  {
+   "prompt_id": "db9f21f6-10a9-4e06-b131-466fdacd843e",
+   "run": 4,
+   "text": "Midjourney has become a popular tool for AI image generation, but several strong alternatives offer diverse features, pricing models, and specialties. Here are some of the top alternatives:\n\n*   **GPT Image 1.5** is highlighted for its precision in editing, text rendering, and instruction following, making it suitable for workflows requiring deterministic editing and text fidelity. It is also available through EvoLink model routes.\n*   **Magnific (formerly Freepik)** is a highly recommended alternative that offers a wide selection of over 30 image and video models, including Nano Banana 2 and FLUX.2 Pro. It also includes the Magnific upscaler for print quality, professional editing tools, and over 250 million stock assets. Magnific provides a free tier with daily credits, and paid plans, such as the Premium plan, include a commercial license.\n*   **DALL-E 3** is recognized for producing some of the most realistic images among AI creation tools.\n*   **Stable Diffusion** is a popular open-source and free option that allows for significant control and customization.\n*   **Leonardo AI** is highly regarded for gaming visuals and creators, offering realistic image creation and a free tier with certain limitations.\n*   **Adobe Firefly** is particularly well-suited for professional designers.\n*   **Playground AI** offers extensive customization features and includes a free tier with a daily limit.\n*   **ChatGPT (GPT-5.2)** is also listed as a viable alternative for AI image generation.\n*   **Bing Image Creator** is another tool that provides AI image generation capabilities.\n*   **Ideogram** is mentioned as an alternative to consider.\n*   **ArtSmart** is noted for closely matching Midjourney's quality in image generation tests.\n*   **Other alternatives** include Seedream 5.0, Nano Banana 2, Seedream 4.5, Qwen Image Edit Plus, and Z-Image Turbo, all of which are available through EvoLink model routes and can be stronger fits for API-style workflows than Midjourney. SeaArt AI, Segmind, and DomoAI are also listed as alternatives.\n\nWhen choosing an alternative, consider your specific needs, such as the desire for photorealistic images, granular control over artistic styles, commercial usage rights, or budget constraints. Many tools offer free tiers or credits, allowing users to test them before committing to a paid plan.",
+   "label": "P1r4",
+   "brands": [
+    "Midjourney",
+    "GPT Image 1.5",
+    "EvoLink",
+    "Magnific",
+    "Freepik",
+    "Nano Banana 2",
+    "FLUX.2 Pro",
+    "DALL-E 3",
+    "Stable Diffusion",
+    "Leonardo AI",
+    "Adobe Firefly",
+    "Playground AI",
+    "ChatGPT",
+    "Bing Image Creator",
+    "Ideogram",
+    "ArtSmart",
+    "Seedream 5.0",
+    "Seedream 4.5",
+    "Qwen Image Edit Plus",
+    "Z-Image Turbo",
+    "SeaArt AI",
+    "Segmind",
+    "DomoAI"
+   ]
+  },
+  {
+   "prompt_id": "db9f21f6-10a9-4e06-b131-466fdacd843e",
+   "run": 5,
+   "text": "Midjourney is a popular AI image generator, but several powerful alternatives offer unique features and capabilities. Here are some of the top alternatives for AI image generation:\n\n*   **Stable Diffusion** An open-source option, Stable Diffusion is highly customizable and can be run locally or via cloud-based services. It's often considered a \"raw engine\" for AI image generation, offering extensive control.\n*   **Leonardo AI** Built with artists, especially those in the gaming world, in mind, Leonardo AI is praised for its advanced fine-tuning capabilities and asset management. It's also considered a strong general-purpose alternative.\n*   **Adobe Firefly** Ideal for users already within the Adobe ecosystem, Firefly provides seamless Creative Cloud integration and is trained on Adobe Stock content, making it a commercially safe choice with legal indemnification.\n*   **DALL-E 3 (integrated with ChatGPT)** OpenAI's latest image generation model, DALL-E 3, is integrated directly into ChatGPT (GPT-5.2), allowing users to create images within the chat interface.\n*   **Ideogram** This alternative is particularly noted for its ability to generate images with accurate text integrated within them, making it excellent for typography in AI art.\n*   **Playground AI** Offering robust customization features and capabilities for bulk generation, Playground AI is a good option for users who need to produce many images.\n*   **Bing Image Creator** This tool also offers AI image generation, providing another accessible option for users.\n\nOther notable alternatives include Magnific (formerly Freepik), ArtSmart.ai, Canva, Jasper Art, Dream, NightCafe Creator, and Imagen 3. For those looking for an all-in-one solution that includes video creation, Cuty AI is also available.",
+   "label": "P1r5",
+   "brands": [
+    "Midjourney",
+    "Stable Diffusion",
+    "Leonardo AI",
+    "Adobe Firefly",
+    "DALL-E 3",
+    "ChatGPT",
+    "OpenAI",
+    "Ideogram",
+    "Playground AI",
+    "Bing Image Creator",
+    "Magnific",
+    "Freepik",
+    "ArtSmart.ai",
+    "Canva",
+    "Jasper Art",
+    "Dream",
+    "NightCafe Creator",
+    "Imagen 3",
+    "Cuty AI"
+   ]
+  },
+  {
+   "prompt_id": "f99882c0-4539-4dd1-b978-9b1cbd590fa7",
+   "run": 1,
+   "text": "",
+   "label": "P2r1",
+   "brands": []
+  },
+  {
+   "prompt_id": "f99882c0-4539-4dd1-b978-9b1cbd590fa7",
+   "run": 2,
+   "text": "Determining the \"best\" AI video generator tool depends largely on individual needs, budget, and desired features. However, several platforms consistently rank high for their capabilities, ease of use, and output quality in 2026.\n\n**Top Contenders for AI Video Generation in 2026:**\n\n*   **HeyGen** is frequently cited as a strong overall performer, particularly praised for its intuitive user interface, auto video translation, and suitability for marketing and user-generated content (UGC). It also offers a good free plan.\n*   **Google Veo 3 (via AI Studio)** stands out for its generative video quality, physics-based motion, cinematic rendering, and audio sync, making it excellent for storytelling and cinematic productions. It's currently in an invite-only beta with a free plan.\n*   **Sora 2 by OpenAI** is noted for its integration with ChatGPT, easy prompting, and multi-scene support, making it ideal for quick video sketching and concept testing. It's included with ChatGPT Plus.\n*   **Hedra** is recognized as a top overall choice for professionals, offering a visual workspace that facilitates collaboration with AI and access to various models.\n*   **Runway Gen-4.5** offers multi-motion brush and fine-grain control, making it suitable for creative editing and experimental projects. It provides free credits to start.\n*   **Kling 2.6** is highlighted for its physics engine, 3D motion realism, and 1080p output, particularly useful for action simulations and product demos.\n*   **Pika Labs 2.5** offers great value and performance, with output ranging from 480p to 4K, making it a budget-friendly option for social media content and quick prototyping.\n*   **InVideo AI** is praised for its text-to-video capabilities, trend templates, and multi-format output, which is beneficial for YouTube content, blog-to-video conversions, and quick explainers.\n*   **CapCut** is often recommended for social media creators due to its robust free plan.\n\n**Other Notable Tools:**\n\n*   **Higgsfield AI** offers over 50 cinematic camera movements and is well-suited for cinematic production, brand content, and social media.\n*   **Hailuo Minimax** provides template-based editing and fast generation, making it effective for marketing and product onboarding.\n*   **Wondershare Filmora** is an established video editing tool that has integrated strong AI features for polishing videos, though it may run slower on less powerful computers.\n*   **Synthesia** is known for its extensive library of avatars and voices.\n\nWhen choosing an AI video generator, consider factors such as the quality of the generative video, ease of use, specific features (e.g., text-to-video, avatar generation, motion control), pricing models (including free plans or credits), and the tool's suitability for your intended use (e.g., social media, professional marketing, cinematic projects). Many platforms offer free trials or limited free versions, allowing users to test their functionalities before committing to a subscription.",
+   "label": "P2r2",
+   "brands": [
+    "HeyGen",
+    "Veo 3",
+    "Sora 2",
+    "OpenAI",
+    "ChatGPT",
+    "Hedra",
+    "Runway Gen-4.5",
+    "Kling 2.6",
+    "Pika Labs 2.5",
+    "InVideo AI",
+    "CapCut",
+    "Higgsfield AI",
+    "Hailuo Minimax",
+    "Wondershare Filmora",
+    "Synthesia"
+   ]
+  },
+  {
+   "prompt_id": "f99882c0-4539-4dd1-b978-9b1cbd590fa7",
+   "run": 3,
+   "text": "The landscape of AI video generator tools is rapidly evolving, with several powerful platforms vying for the top spot in 2026. The \"best\" tool often depends on individual needs, skill level, budget, and project requirements. However, some consistently rank high for their advanced capabilities, ease of use, and versatility.\n\nHere's a breakdown of some of the top AI video generator tools:\n\n**Overall Top Contenders & Most Realistic Output:**\n*   **Google Veo 3 / Veo 3.1** is frequently cited as an all-around leader, particularly for generating realistic and cinematic videos. It excels in prompt adherence, combining video and audio generation, and offering robust creative tools.\n*   **Hedra** is recognized as a strong overall choice, especially for professionals and individuals seeking a visual workspace for collaborating with AI. It's praised for its comprehensive workflow, multi-model access, and commercial readiness.\n*   **Sora** is noted for its versatility, producing high-resolution footage suitable for marketing content, animations, and product visualizations with a significant level of control.\n\n**Best for Specific Use Cases:**\n\n*   **Professionals and Cinematic Videos:**\n    *   **Veo 3 by Google** is specifically recommended as the best paid AI video generator for cinematic videos.\n    *   **Adobe Firefly** is considered highly versatile and a promising entrant, especially for professional work, offering many style options and the ability to match the style or structure of uploaded images. However, video creations currently cap at five seconds.\n*   **Accessible Multi-Model Creation & Social Media:**\n    *   **Dreamina (ByteDance / CapCut)** is an excellent choice for creators looking for strong video capabilities, solid image tools, and a free daily credit path within a CapCut-adjacent product. It's an all-in-one AI creative suite.\n    *   **CapCut** also stands out for its robust free plan, making it ideal for social media creators.\n*   **Marketing Teams & Social Ads:**\n    *   **Runway** is highlighted for marketing teams and social ads, offering strong brand control and editing flexibility.\n*   **AI Avatars:**\n    *   **HeyGen** is recognized as the best for generating AI avatars and is also considered an excellent overall free AI video generator.\n*   **Budget-Friendly Option:**\n    *   **Kling AI** is noted as a strong budget-friendly choice.\n*   **Polishing Videos with AI:**\n    *   **Wondershare Filmora** is recommended as the best AI video editor for enhancing existing videos with AI tools, combining traditional video editing features with AI capabilities.\n*   **Text-to-Video Creation:**\n    *   **InVideo AI** is praised for its ability to create AI videos simply by entering text prompts.\n\n**Factors to Consider When Choosing an AI Video Generator:**\n\nWhen selecting an AI video generator, consider the following aspects:\n*   **Workflow:** Look at the interface – whether it uses a canvas, nodes, timeline, or a one-shot generation approach.\n*   **Model Access:** Determine if the platform offers a proprietary stack or access to multiple AI models.\n*   **Brand & Asset Consistency:** Evaluate its ability to maintain consistent products, styles, and reusable elements across shots.\n*   **Commercial Readiness:** Assess its suitability for marketing work, including export options, team collaboration features, and clear pricing.\n*   **Learning Curve:** Consider how long it takes for a non-technical creator to achieve a good output.\n*   **Quality and Realism:** While some tools excel in realism, others might be better for stylistic or experimental content. Many AI-generated videos can still exhibit \"uncanny valley\" effects with distortions.",
+   "label": "P2r3",
+   "brands": [
+    "Veo 3",
+    "Hedra",
+    "Sora",
+    "Adobe Firefly",
+    "Dreamina",
+    "ByteDance",
+    "CapCut",
+    "Runway",
+    "HeyGen",
+    "Kling AI",
+    "Wondershare Filmora",
+    "InVideo AI"
+   ]
+  },
+  {
+   "prompt_id": "f99882c0-4539-4dd1-b978-9b1cbd590fa7",
+   "run": 4,
+   "text": "The \"best\" AI video generator tool depends largely on individual needs, budget, and desired output, as different tools excel in various areas. However, Google's Veo 3.1 is consistently highlighted as a top contender for its overall performance, offering strong prompt adherence, realism in combining video and audio generation, and robust creative tools. It is particularly noted for producing cinematic footage that rivals stock libraries and for its ability to generate realistic clips with granular control and passable audio. CNET also identifies Google's Veo 3 as the best paid AI video generator for cinematic videos.\n\nOther highly-rated AI video generator tools in 2026 include:\n\n*   **Dreamina (ByteDance/CapCut)**: Praised for accessible multi-model creation, offering strong Seedance-class video, solid image tools, and a free daily credit path.\n*   **Adobe Firefly**: Recommended for professional work and its versatility, offering a good selection of preset styles and effects, and the ability to match the style or structure of uploaded images.\n*   **Invideo AI**: Recognized for marketing automation, enabling users to create AI videos by simply entering text prompts and handling full script-to-video workflows.\n*   **Synthesia and HeyGen**: These tools are leaders in avatar-based video creation, ideal for training videos and presentations with realistic human-like avatars and voice cloning. HeyGen is also noted as a strong overall free AI video generator.\n*   **Runway**: Valued for creative control and its text-to-video capabilities, allowing for more experimental and artistic video generation.\n*   **OpenAI Sora**: Frequently mentioned for its cinematic quality and versatility in generating high-resolution footage for various purposes, including marketing content and product visualizations.\n\nMany leading AI video tools in 2026 now support native 4K resolution, high-frame-rate output, and have largely solved temporal consistency issues, meaning characters and environments remain stable across longer generations. Integration with traditional editing suites like Adobe Premiere Pro and DaVinci Resolve is also becoming a standard feature for top-tier generators.",
+   "label": "P2r4",
+   "brands": [
+    "Veo 3.1",
+    "Veo 3",
+    "Dreamina",
+    "ByteDance",
+    "CapCut",
+    "Adobe Firefly",
+    "Invideo AI",
+    "Synthesia",
+    "HeyGen",
+    "Runway",
+    "Sora",
+    "Adobe Premiere Pro",
+    "DaVinci Resolve"
+   ]
+  },
+  {
+   "prompt_id": "f99882c0-4539-4dd1-b978-9b1cbd590fa7",
+   "run": 5,
+   "text": "",
+   "label": "P2r5",
+   "brands": []
+  }
+ ]
+}

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Runner: DB-facing orchestration around the pure Diagnosis stage.
 
 Loads a DiagnosisContext via repositories, runs the stage, and persists the
@@ -11,9 +13,14 @@ import uuid
 from typing import Any
 
 from app.db.base import SessionLocal
-from app.db.repositories import AccountRepository, GapRepository
+from app.db.repositories import (
+    AccountRepository,
+    FindingRepository,
+    GapRepository,
+    MentionRepository,
+)
 from app.gateway import Gateway
-from app.pipeline.diagnosis.contracts import DiagnosisContext
+from app.pipeline.diagnosis.contracts import CitedSource, DiagnosisContext
 from app.pipeline.diagnosis.fetcher import Fetcher
 from app.pipeline.diagnosis.stage import diagnose
 
@@ -32,6 +39,16 @@ def load_diagnosis_context(
     url = target_url or (f"https://{account.domain}" if account.domain else None)
     if not url:
         raise ValueError("no target_url given and account has no domain")
+    # What the engines cited this scan. Loaded here rather than passed in, so
+    # the citation checks work on a normal chained run — `competitor_urls` was
+    # only ever set by a caller that does not exist in the chain, which is half
+    # of why the old third-party check was dead code.
+    cited = (
+        MentionRepository(session).cited_sources_for_scan(account_id, scan_id)
+        if scan_id
+        else []
+    )
+
     return DiagnosisContext(
         account_id=account_id,
         scan_id=scan_id,
@@ -39,6 +56,7 @@ def load_diagnosis_context(
         brand_aliases=list(account.brand_aliases or []),
         target_url=url,
         competitor_urls=competitor_urls or [],
+        cited_sources=[CitedSource(**c) for c in cited],
     )
 
 
@@ -67,11 +85,18 @@ def run_diagnosis(
 
     with SessionLocal() as session:
         n_gaps = GapRepository(session).bulk_insert(account_id, scan_id, output.gaps)
+        # Persist the findings THEMSELVES, not just how many there were. A check
+        # that concluded "no problem here" is a claim we make to the customer, and
+        # it has to be re-walkable from the record — which sitemap was read, what
+        # matched, whether a fallback fired and why.
+        n_findings = FindingRepository(session).bulk_insert(
+            account_id, scan_id, output.findings
+        )
         session.commit()
 
     return {
         "target_url": context.target_url,
-        "findings": len(output.findings),
+        "findings": n_findings,
         "gaps": n_gaps,
         "blocked_search_bots": output.bot_audit.blocked_search_bots,
         "traps": output.bot_audit.traps_triggered,

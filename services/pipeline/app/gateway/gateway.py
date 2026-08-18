@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """The gateway facade — the one entry point for every model call.
 
     gw = get_gateway()
@@ -20,6 +22,7 @@ from typing import Any
 from app.core.config import get_settings
 from app.gateway.cache import CacheBackend, InMemoryTTLCache, cache_key
 from app.gateway.cost import CostEntry, CostSink, DbCostSink, compute_cost
+from app.gateway.credentials import account_scope
 from app.gateway.models_config import ModelsConfig, ResolvedTarget, get_models_config
 from app.gateway.providers import Provider, build_providers, ensure_registered
 from app.gateway.ratelimit import RateLimiter, TokenBucketRateLimiter
@@ -96,7 +99,11 @@ class Gateway:
             params = {**params, "scenario": scenario}
 
         try:
-            result = self._invoke_with_fallback(task, target, msgs, params)
+            # Bind the tenant for the duration of the call so a managed
+            # deployment's credential resolver can pick THIS account's key.
+            # No-op in a self-hosted install, which has only operator keys.
+            with account_scope(ctx[0]):
+                result = self._invoke_with_fallback(task, target, msgs, params)
         except Exception:
             # A call that failed (after any fallback) is logged too — zero usage,
             # status 'error' — so a missing row always means a logging bug, never a
@@ -104,7 +111,12 @@ class Gateway:
             self._log(task, target, Usage(), Decimal("0"), ctx, status="error")
             raise
 
-        cost = compute_cost(target.price, result.usage, grounded=target.grounding)
+        cost = compute_cost(
+            target.price,
+            result.usage,
+            grounded=target.grounding,
+            grounded_units=result.grounded_units or 1,
+        )
         response = GatewayResponse(
             text=result.text,
             usage=result.usage,
@@ -116,6 +128,8 @@ class Gateway:
             scenario=scenario_eff,
             citations=result.citations,
             sources=result.sources,
+            finish_reason=result.finish_reason,
+            truncated=result.truncated,
         )
 
         self._log(task, target, result.usage, cost, ctx)

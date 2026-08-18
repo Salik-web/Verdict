@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Salik Syed
 """Tenant-scoped data access for scans."""
 
 from __future__ import annotations
@@ -6,7 +8,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import Scan
@@ -61,6 +63,33 @@ class ScanRepository:
                     Scan.account_id == _as_uuid(account_id),
                     Scan.created_at >= since,
                 )
+            ).all()
+        )
+
+    def list_stale(self, older_than: datetime) -> list[Scan]:
+        """Scans still `pending`/`running` since before `older_than`.
+
+        A worker killed mid-task (OOM, container eviction, a hard time limit)
+        raises nothing and runs no handler, so its scan sits at `running`
+        forever — indistinguishable to a user from one that is merely slow. The
+        soft task time limit covers a task that is still ALIVE; this covers the
+        process that isn't.
+
+        Ordered oldest-first so a backlog is cleared in the order it accumulated.
+        Not tenant-scoped: this is an operator sweep across all accounts, unlike
+        every other method here.
+        """
+        return list(
+            self.session.scalars(
+                select(Scan)
+                .where(
+                    Scan.status.in_(("pending", "running")),
+                    # A pending scan may never have started, so fall back to
+                    # created_at — otherwise a scan that died before
+                    # mark_running() would never be swept.
+                    func.coalesce(Scan.started_at, Scan.created_at) < older_than,
+                )
+                .order_by(func.coalesce(Scan.started_at, Scan.created_at))
             ).all()
         )
 

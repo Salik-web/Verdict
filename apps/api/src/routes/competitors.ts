@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Salik Syed
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authOf, buildRequireAuth } from "../auth/plugin.js";
@@ -5,11 +7,11 @@ import type { AppContext } from "../context.js";
 import { limitsFor } from "../plans.js";
 import { AccountRepository } from "../repositories/account-repository.js";
 import { CompetitorRepository } from "../repositories/competitor-repository.js";
-import { parse, uuidParam } from "../validate.js";
+import { domainSchema, parse, uuidParam } from "../validate.js";
 
 const createSchema = z.object({
   name: z.string().min(1).max(120),
-  domain: z.string().max(255).optional(),
+  domain: domainSchema.optional(),
   aliases: z.array(z.string().max(120)).max(20).default([]),
   isSelf: z.boolean().default(false),
 });
