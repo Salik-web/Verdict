@@ -66,7 +66,7 @@ jobs:
       # `uv cache prune --ci` by default and exited 2 after every real step
       # passed; v9 changed prune-cache's default to false, and v10 runs on
       # node24 rather than the deprecated node20.
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: astral-sh/setup-uv@v10.3.0
         with:
           python-version: "3.12"
       - name: start pipeline service
@@ -118,7 +118,7 @@ jobs:
       # `uv cache prune --ci` by default and exited 2 after every real step
       # passed; v9 changed prune-cache's default to false, and v10 runs on
       # node24 rather than the deprecated node20.
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: astral-sh/setup-uv@v10.3.0
         with:
           python-version: "3.12"
       - working-directory: services/pipeline
@@ -157,7 +157,7 @@ jobs:
       # `uv cache prune --ci` by default and exited 2 after every real step
       # passed; v9 changed prune-cache's default to false, and v10 runs on
       # node24 rather than the deprecated node20.
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: astral-sh/setup-uv@v10.3.0
         with:
           python-version: "3.12"
       - name: pip-audit (pipeline deps)
